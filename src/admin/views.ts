@@ -4,6 +4,7 @@
 
 import type {
   ActivityRow,
+  ToolCallSummary,
   UserData,
   UserDetail,
   UserSummary,
@@ -102,7 +103,7 @@ const BASE_CSS = `
 
 function layout(args: {
   title: string;
-  active: 'users' | 'activity' | '';
+  active: 'users' | 'activity' | 'calls' | '';
   body: string;
 }): string {
   return `<!doctype html>
@@ -119,6 +120,7 @@ function layout(args: {
   <nav>
     <a href="/admin/users" class="${args.active === 'users' ? 'active' : ''}">Users</a>
     <a href="/admin/activity" class="${args.active === 'activity' ? 'active' : ''}">Activity</a>
+    <a href="/admin/calls" class="${args.active === 'calls' ? 'active' : ''}">Tool calls</a>
   </nav>
   <span class="spacer"></span>
   <a href="/admin/logout" class="logout">Sign out</a>
@@ -150,7 +152,14 @@ export function renderLogin(error?: string): string {
 
 export function renderUsersList(args: {
   users: UserSummary[];
-  totals: { users: number; workouts: number; meals: number; logs: number; targets: number };
+  totals: {
+    users: number;
+    workouts: number;
+    meals: number;
+    logs: number;
+    targets: number;
+    tool_calls: number;
+  };
 }): string {
   const stats = `
     <div class="stat-grid">
@@ -159,6 +168,7 @@ export function renderUsersList(args: {
       <div class="stat"><div class="label">Meals</div><div class="value">${args.totals.meals}</div></div>
       <div class="stat"><div class="label">Logs</div><div class="value">${args.totals.logs}</div></div>
       <div class="stat"><div class="label">Targets</div><div class="value">${args.totals.targets}</div></div>
+      <div class="stat"><div class="label">Tool calls</div><div class="value">${args.totals.tool_calls}</div></div>
     </div>
   `;
 
@@ -205,9 +215,48 @@ export function renderUsersList(args: {
   return layout({ title: 'Users', active: 'users', body });
 }
 
+function renderToolCallsTable(
+  rows: ToolCallSummary[],
+  opts: { showUser: boolean },
+): string {
+  if (rows.length === 0) {
+    return `<table><tbody><tr><td class="empty">No tool calls yet.</td></tr></tbody></table>`;
+  }
+  const headers = opts.showUser
+    ? ['When', 'User', 'Tool', 'Args', 'Result', 'Time']
+    : ['When', 'Tool', 'Args', 'Result', 'Time'];
+  const headerRow = headers.map((h) => `<th>${escape(h)}</th>`).join('');
+  const bodyRows = rows
+    .map((r) => {
+      const errClass = r.error ? ' style="background: rgba(178,42,42,0.08);"' : '';
+      const argsCell = r.args_json
+        ? `<details><summary>${escape((r.args_json.slice(0, 60) || '').replace(/\s+/g, ' '))}${r.args_json.length > 60 ? '…' : ''}</summary><pre style="margin: 4px 0; max-width: 400px; white-space: pre-wrap; word-break: break-word;">${escape(r.args_json)}</pre></details>`
+        : '<span class="muted">—</span>';
+      const resultCell = r.error
+        ? `<span style="color: var(--danger);">⚠ ${escape(r.error)}</span>`
+        : r.result_text
+          ? `<details><summary>${escape((r.result_text.slice(0, 60) || '').replace(/\s+/g, ' '))}${r.result_text.length > 60 ? '…' : ''}</summary><pre style="margin: 4px 0; max-width: 500px; white-space: pre-wrap; word-break: break-word;">${escape(r.result_text)}</pre></details>`
+          : '<span class="muted">—</span>';
+      const userCell = opts.showUser
+        ? `<td><a href="/admin/users/${escape(r.user_id)}">${escape(r.user_name ?? r.user_email)}</a></td>`
+        : '';
+      return `<tr${errClass}>
+        <td>${relTime(r.called_at)}<div class="muted" style="font-size:12px;">${shortDate(r.called_at)}</div></td>
+        ${userCell}
+        <td><span class="pill">${escape(r.tool_name)}</span></td>
+        <td>${argsCell}</td>
+        <td>${resultCell}</td>
+        <td class="num">${r.duration_ms} ms</td>
+      </tr>`;
+    })
+    .join('');
+  return `<table><thead><tr>${headerRow}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
 export function renderUserDetail(
   user: UserDetail,
   data: UserData,
+  toolCalls: ToolCallSummary[],
 ): string {
   const renderTable = <T,>(
     title: string,
@@ -247,6 +296,11 @@ export function renderUserDetail(
       ${escape(user.email)} · ${escape(user.timezone)} · joined ${shortDate(user.created_at)} · last seen ${relTime(user.last_login_at)}
     </div>
 
+    <section>
+      <h3>Tool calls (${toolCalls.length} most recent)</h3>
+      ${renderToolCallsTable(toolCalls, { showUser: false })}
+    </section>
+
     ${renderTable('Workouts', data.workouts, ['When', 'Type', 'Intensity', 'Duration', 'Notes'], (w) => [
       `${escape(w.done_on)}<div class="muted" style="font-size:12px;">${shortDate(w.done_at)}</div>`,
       `<span class="pill workout">${escape(w.type)}</span>`,
@@ -283,6 +337,16 @@ export function renderUserDetail(
     active: 'users',
     body,
   });
+}
+
+export function renderCallsFeed(rows: ToolCallSummary[]): string {
+  const body = `
+    <h2>Tool calls</h2>
+    <p class="muted" style="margin-top: -8px;">Last ${rows.length} tool invocations across all users. Auto-refreshes every 30s. Click a row to expand args and full result.</p>
+    ${renderToolCallsTable(rows, { showUser: true })}
+    <script>setTimeout(() => location.reload(), 30000);</script>
+  `;
+  return layout({ title: 'Tool calls', active: 'calls', body });
 }
 
 export function renderActivity(rows: ActivityRow[]): string {

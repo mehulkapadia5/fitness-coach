@@ -136,6 +136,59 @@ export async function recentActivity(
   return results ?? [];
 }
 
+export interface ToolCallSummary {
+  id: string;
+  user_id: string;
+  user_email: string;
+  user_name: string | null;
+  tool_name: string;
+  args_json: string | null;
+  result_text: string | null;
+  duration_ms: number;
+  error: string | null;
+  called_at: string;
+}
+
+export async function recentToolCallsForUser(
+  db: D1Database,
+  userId: string,
+  limit: number,
+): Promise<ToolCallSummary[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT tc.id, tc.user_id, u.email AS user_email, u.name AS user_name,
+              tc.tool_name, tc.args_json, tc.result_text, tc.duration_ms,
+              tc.error, tc.called_at
+         FROM tool_calls tc
+         JOIN users u ON u.id = tc.user_id
+        WHERE tc.user_id = ?
+        ORDER BY tc.called_at DESC
+        LIMIT ?`,
+    )
+    .bind(userId, limit)
+    .all<ToolCallSummary>();
+  return results ?? [];
+}
+
+export async function recentToolCallsAll(
+  db: D1Database,
+  limit: number,
+): Promise<ToolCallSummary[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT tc.id, tc.user_id, u.email AS user_email, u.name AS user_name,
+              tc.tool_name, tc.args_json, tc.result_text, tc.duration_ms,
+              tc.error, tc.called_at
+         FROM tool_calls tc
+         JOIN users u ON u.id = tc.user_id
+        ORDER BY tc.called_at DESC
+        LIMIT ?`,
+    )
+    .bind(limit)
+    .all<ToolCallSummary>();
+  return results ?? [];
+}
+
 export interface UserData {
   workouts: Array<{
     id: string;
@@ -228,15 +281,17 @@ export async function totalCounts(db: D1Database): Promise<{
   meals: number;
   logs: number;
   targets: number;
+  tool_calls: number;
 }> {
   const row = await db
     .prepare(
       `SELECT
-         (SELECT COUNT(*) FROM users)    AS users,
-         (SELECT COUNT(*) FROM workouts) AS workouts,
-         (SELECT COUNT(*) FROM meals)    AS meals,
-         (SELECT COUNT(*) FROM logs)     AS logs,
-         (SELECT COUNT(*) FROM targets)  AS targets`,
+         (SELECT COUNT(*) FROM users)      AS users,
+         (SELECT COUNT(*) FROM workouts)   AS workouts,
+         (SELECT COUNT(*) FROM meals)      AS meals,
+         (SELECT COUNT(*) FROM logs)       AS logs,
+         (SELECT COUNT(*) FROM targets)    AS targets,
+         (SELECT COUNT(*) FROM tool_calls) AS tool_calls`,
     )
     .first<{
       users: number;
@@ -244,8 +299,16 @@ export async function totalCounts(db: D1Database): Promise<{
       meals: number;
       logs: number;
       targets: number;
+      tool_calls: number;
     }>();
   return (
-    row ?? { users: 0, workouts: 0, meals: 0, logs: 0, targets: 0 }
+    row ?? {
+      users: 0,
+      workouts: 0,
+      meals: 0,
+      logs: 0,
+      targets: 0,
+      tool_calls: 0,
+    }
   );
 }

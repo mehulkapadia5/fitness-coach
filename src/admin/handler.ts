@@ -12,10 +12,13 @@ import {
   getUserDetail,
   listUsers,
   recentActivity,
+  recentToolCallsAll,
+  recentToolCallsForUser,
   totalCounts,
 } from './queries.js';
 import {
   renderActivity,
+  renderCallsFeed,
   renderLogin,
   renderUserDetail,
   renderUsersList,
@@ -109,21 +112,27 @@ export async function handleAdminRoute(
   const userMatch = path.match(/^\/admin\/users\/([a-z0-9-]+)$/i);
   if (userMatch) {
     const userId = userMatch[1];
-    const [user, data] = await Promise.all([
+    const [user, data, toolCalls] = await Promise.all([
       getUserDetail(env.DB, userId),
       getUserData(env.DB, userId, 50),
+      recentToolCallsForUser(env.DB, userId, 50),
     ]);
     if (!user) {
       return htmlResponse(`<p style="padding:24px;">User not found.</p>`, {
         status: 404,
       });
     }
-    return htmlResponse(renderUserDetail(user, data));
+    return htmlResponse(renderUserDetail(user, data, toolCalls));
   }
 
   if (path === '/admin/activity') {
     const rows = await recentActivity(env.DB, 100);
     return htmlResponse(renderActivity(rows));
+  }
+
+  if (path === '/admin/calls') {
+    const rows = await recentToolCallsAll(env.DB, 100);
+    return htmlResponse(renderCallsFeed(rows));
   }
 
   return new Response('Not found', { status: 404 });

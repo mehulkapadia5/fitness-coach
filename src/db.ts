@@ -77,8 +77,70 @@ export interface LogRow {
 
 export type TableName = 'workouts' | 'meals' | 'logs' | 'targets';
 
+export interface ToolCallRow {
+  id: string;
+  user_id: string;
+  tool_name: string;
+  args_json: string | null;
+  result_text: string | null;
+  duration_ms: number;
+  error: string | null;
+  called_at: string;
+  created_at: string;
+}
+
 function newId(): string {
   return crypto.randomUUID();
+}
+
+const FIELD_TRUNCATE_BYTES = 4_096;
+
+function truncateForDb(s: string | null | undefined): string | null {
+  if (s == null) return null;
+  if (s.length <= FIELD_TRUNCATE_BYTES) return s;
+  return s.slice(0, FIELD_TRUNCATE_BYTES) + ' […truncated]';
+}
+
+/**
+ * Persist a tool invocation. Called from the registerTool wrapper in
+ * mcp.ts — every tool call passes through here regardless of whether
+ * it succeeded or threw.
+ */
+export async function logToolCall(
+  db: D1Database,
+  args: {
+    userId: string;
+    toolName: string;
+    args: unknown;
+    resultText: string | null;
+    durationMs: number;
+    error: string | null;
+  },
+): Promise<void> {
+  const id = newId();
+  const calledAt = nowUTCISO();
+  let argsJson: string | null = null;
+  try {
+    argsJson = JSON.stringify(args.args);
+  } catch {
+    argsJson = null;
+  }
+  await db
+    .prepare(
+      `INSERT INTO tool_calls (id, user_id, tool_name, args_json, result_text, duration_ms, error, called_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      args.userId,
+      args.toolName,
+      truncateForDb(argsJson),
+      truncateForDb(args.resultText),
+      args.durationMs,
+      args.error,
+      calledAt,
+    )
+    .run();
 }
 
 // =============================================================================
