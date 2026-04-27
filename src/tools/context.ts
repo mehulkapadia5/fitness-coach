@@ -16,6 +16,7 @@ import {
   istDayOfWeek,
   istTimeString,
 } from '../time.js';
+import { URI_GET_CONTEXT } from '../widgets/templates.js';
 import type { UserContext } from './types.js';
 
 const description =
@@ -98,6 +99,13 @@ export function registerGetContext(
         openWorldHint: false,
       },
       inputSchema: {},
+      _meta: {
+        // Apps SDK pointer to the widget HTML resource. Both keys are
+        // honored: openai/outputTemplate is ChatGPT-specific, ui.resourceUri
+        // is the cross-client MCP-Apps standard.
+        'openai/outputTemplate': URI_GET_CONTEXT,
+        ui: { resourceUri: URI_GET_CONTEXT },
+      },
     },
     async () => {
       const today = istDateString(new Date(), ctx.timezone);
@@ -163,8 +171,12 @@ export function registerGetContext(
         recent_notes,
       };
 
+      // Both `content` (text for the model) and `structuredContent`
+      // (typed payload for the widget) are returned. Widget reads
+      // structuredContent via the postMessage bridge in ChatGPT.
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        structuredContent: payload,
       };
     },
   );

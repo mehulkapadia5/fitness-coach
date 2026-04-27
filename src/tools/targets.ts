@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { clearTarget, setTarget } from '../db.js';
+import { URI_SET_TARGET } from '../widgets/templates.js';
 import type { UserContext } from './types.js';
 
 const setDescription =
@@ -30,6 +31,10 @@ export function registerSetTarget(
         destructiveHint: false,
         idempotentHint: false,
         openWorldHint: false,
+      },
+      _meta: {
+        'openai/outputTemplate': URI_SET_TARGET,
+        ui: { resourceUri: URI_SET_TARGET },
       },
       inputSchema: {
         kind: z
@@ -81,6 +86,14 @@ export function registerSetTarget(
             ? '≤'
             : '=';
       const summary = `Target set: ${row.kind} ${op} ${row.target_value}${row.unit} (${row.period})`;
+      const structuredContent = {
+        kind: row.kind,
+        target_value: row.target_value,
+        unit: row.unit,
+        period: row.period,
+        comparison: row.comparison,
+        set_on: row.set_on,
+      };
       return {
         content: [
           {
@@ -92,6 +105,7 @@ export function registerSetTarget(
             ),
           },
         ],
+        structuredContent,
       };
     },
   );

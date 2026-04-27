@@ -9,6 +9,7 @@ import { registerLogWorkout } from './tools/workouts.js';
 import { registerRecent } from './tools/recent.js';
 import { registerClearTarget, registerSetTarget } from './tools/targets.js';
 import type { UserContext } from './tools/types.js';
+import { registerAllWidgets } from './widgets/register.js';
 
 interface CallToolResultLike {
   content?: Array<{ type?: string; text?: string }>;
@@ -101,7 +102,12 @@ export function buildServer(
     },
     {
       instructions: SERVER_INSTRUCTIONS,
-      capabilities: { tools: {} },
+      capabilities: {
+        tools: {},
+        // Apps SDK widgets are served as MCP resources; declaring this
+        // capability lets ChatGPT discover and fetch the HTML templates.
+        resources: {},
+      },
       // ajv pulls in things that don't run cleanly on the Workers runtime;
       // the cfworker validator is the supported edge alternative.
       jsonSchemaValidator: new CfWorkerJsonSchemaValidator(),
@@ -109,6 +115,10 @@ export function buildServer(
   );
 
   installLoggingWrapper(server, ctx);
+
+  // UI widgets first so the resource URIs exist before tools reference
+  // them via _meta.openai/outputTemplate.
+  registerAllWidgets(server);
 
   registerGetContext(server, ctx);
   registerLogWorkout(server, ctx);
