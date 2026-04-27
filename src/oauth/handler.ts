@@ -8,6 +8,7 @@
 //                    Claude.ai back with its own code.
 //   3. /icon.svg, /favicon.ico, /healthz, / — public static / status routes.
 
+import { handleAdminRoute } from '../admin/handler.js';
 import { upsertUserByGoogle } from '../db.js';
 import { iconResponse } from '../icon.js';
 import {
@@ -27,6 +28,7 @@ export interface Env {
   OAUTH_PROVIDER: OAuthHelpers;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
+  ADMIN_PASSWORD: string;
 }
 
 interface PendingAuth {
@@ -50,6 +52,11 @@ const defaultHandler: ExportedHandler<Env> = {
     }
     if (url.pathname === '/icon.svg' || url.pathname === '/favicon.ico') {
       return iconResponse();
+    }
+
+    // Admin dashboard. Mounted under /admin/*. Has its own cookie auth.
+    if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+      return handleAdminRoute(request, env, url);
     }
 
     // OAuth: kick off Google sign-in
