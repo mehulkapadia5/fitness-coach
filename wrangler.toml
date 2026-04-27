@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "fitness-coach"
-database_id = "<filled-after-d1-create>"
+database_id = "16fb466a-f590-4109-81b6-57d7462bb772"
 migrations_dir = "migrations"
 
 # KV namespace used by @cloudflare/workers-oauth-provider for OAuth state
@@ -18,7 +18,7 @@ migrations_dir = "migrations"
 # then paste the printed `id` below.
 [[kv_namespaces]]
 binding = "OAUTH_KV"
-id = "<filled-after-kv-namespace-create>"
+id = "db32d58aaf0b47aa893b79f798fbf23c"
 
 # Secrets to set after first deploy:
 #   npx wrangler secret put GOOGLE_CLIENT_ID
