@@ -1,0 +1,37 @@
+{
+  "name": "claude-coach",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Personal health, workout, and meal tracking MCP server for Claude. Runs on Cloudflare Workers + D1, free tier forever.",
+  "keywords": [
+    "mcp",
+    "claude",
+    "cloudflare-workers",
+    "d1",
+    "health",
+    "fitness",
+    "tracking"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "migrate:local": "wrangler d1 migrations apply $npm_package_config_db --local",
+    "migrate:remote": "wrangler d1 migrations apply $npm_package_config_db --remote"
+  },
+  "config": {
+    "db": "claude-coach"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250121.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.99.0"
+  }
+}

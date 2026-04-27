@@ -1,0 +1,12 @@
+name = "claude-coach"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 binding. Run `wrangler d1 create claude-coach` and paste the printed
+# database_id below before running `wrangler dev` or `wrangler deploy`.
+[[d1_databases]]
+binding = "DB"
+database_name = "claude-coach"
+database_id = "<filled-after-d1-create>"
+migrations_dir = "migrations"
