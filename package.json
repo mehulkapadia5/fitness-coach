@@ -1,5 +1,5 @@
 {
-  "name": "mealfix",
+  "name": "fitness-coach",
   "version": "1.0.0",
   "private": false,
   "description": "Personal health, workout, and meal tracking MCP server for Claude. Runs on Cloudflare Workers + D1, free tier forever.",
@@ -22,7 +22,7 @@
     "migrate:remote": "wrangler d1 migrations apply $npm_package_config_db --remote"
   },
   "config": {
-    "db": "mealfix"
+    "db": "fitness-coach"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
