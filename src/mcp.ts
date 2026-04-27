@@ -11,9 +11,9 @@ import { registerClearTarget, registerSetTarget } from './tools/targets.js';
 export function buildServer(db: D1Database, publicOrigin: string): McpServer {
   const server = new McpServer(
     {
-      name: 'claude-coach',
+      name: 'fitness-coach',
       version: '1.0.0',
-      title: 'Claude Coach',
+      title: 'Fitness Coach',
       icons: [
         {
           src: `${publicOrigin}/icon.svg`,

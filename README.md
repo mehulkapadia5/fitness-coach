@@ -1,4 +1,4 @@
-# Claude Coach
+# Fitness Coach
 
 > A personal health, workout, and meal tracking [MCP](https://modelcontextprotocol.io) server for Claude. Talks to Claude.ai as a custom connector. Runs on Cloudflare Workers + D1, free tier forever.
 
@@ -41,8 +41,8 @@ Time-of-day handling is fixed-offset IST (UTC+5:30) by default — see [Customiz
 You'll need a Cloudflare account (free) and Node 18+.
 
 ```bash
-git clone https://github.com/<your-user>/claude-coach.git
-cd claude-coach
+git clone https://github.com/<your-user>/fitness-coach.git
+cd fitness-coach
 npm install
 ```
 
@@ -50,7 +50,7 @@ npm install
 
 ```bash
 npx wrangler login
-npx wrangler d1 create claude-coach
+npx wrangler d1 create fitness-coach
 ```
 
 Copy the printed `database_id` into [wrangler.toml](wrangler.toml), replacing `<filled-after-d1-create>`.
@@ -58,8 +58,8 @@ Copy the printed `database_id` into [wrangler.toml](wrangler.toml), replacing `<
 ### 2. Apply schema
 
 ```bash
-npx wrangler d1 migrations apply claude-coach --local
-npx wrangler d1 migrations apply claude-coach --remote
+npx wrangler d1 migrations apply fitness-coach --local
+npx wrangler d1 migrations apply fitness-coach --remote
 ```
 
 ### 3. Set the auth token
@@ -93,14 +93,14 @@ npx @modelcontextprotocol/inspector
 npx wrangler deploy
 ```
 
-Wrangler prints your live URL, e.g. `https://claude-coach.<subdomain>.workers.dev`.
+Wrangler prints your live URL, e.g. `https://fitness-coach.<subdomain>.workers.dev`.
 
 ### 6. Connect to Claude.ai
 
 [Claude.ai → Settings → Connectors → Add custom connector](https://claude.ai/customize/connectors):
 
 - **Name**: anything (e.g. "Coach")
-- **Remote MCP server URL**: `https://claude-coach.<your-subdomain>.workers.dev/mcp/<your-prod-token>`
+- **Remote MCP server URL**: `https://fitness-coach.<your-subdomain>.workers.dev/mcp/<your-prod-token>`
 - Leave OAuth fields blank.
 
 After it connects, set both **Read-only tools** and **Write/delete tools** to **"Always allow"** — otherwise Claude pops a confirm prompt every time it logs something, which defeats the point.
@@ -130,10 +130,10 @@ Old URL stops working immediately; update the connector URL in Claude.ai.
 ## Backups
 
 ```bash
-npx wrangler d1 export claude-coach --remote --output=backup-$(date +%Y%m%d).sql
+npx wrangler d1 export fitness-coach --remote --output=backup-$(date +%Y%m%d).sql
 ```
 
-Drop that file in iCloud/Dropbox once a month. To restore on a fresh D1: `wrangler d1 execute claude-coach --remote --file=backup.sql`.
+Drop that file in iCloud/Dropbox once a month. To restore on a fresh D1: `wrangler d1 execute fitness-coach --remote --file=backup.sql`.
 
 ## Free-tier headroom
 
