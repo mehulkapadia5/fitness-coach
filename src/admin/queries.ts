@@ -209,6 +209,7 @@ export interface UserData {
     eaten_on: string;
     eaten_at: string;
     description: string;
+    portion_assumed: string | null;
     protein_g: number | null;
     calories_kcal: number | null;
     notes: string | null;
@@ -249,7 +250,7 @@ export async function getUserData(
       .all<UserData['workouts'][number]>(),
     db
       .prepare(
-        `SELECT id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes
+        `SELECT id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, notes
            FROM meals WHERE user_id = ?
            ORDER BY eaten_at DESC LIMIT ?`,
       )

@@ -5,13 +5,14 @@ import { istTimeString } from '../time.js';
 import type { UserContext } from './types.js';
 
 const description =
-  "Log a meal. Capture the user's description verbatim. ALWAYS fill `protein_g` and `calories_kcal` — never call this tool without them. " +
-  "BEFORE calling, decide which bucket the meal falls into: " +
-  "(a) Specific quantities like '100g chicken breast', '2 eggs', '200ml milk' → estimate accurately and call immediately. " +
-  "(b) HIGH-VARIANCE items where size dramatically changes calories (alcohol bottle/can size, pizza slices/size, rice/pasta/curry portions, restaurant dishes, paratha count, fried snacks, sweets, smoothie ml) → DO NOT call this tool yet. Ask the user one short clarifying question about size first ('Budweiser Magnum: 330ml, 500ml, or 650ml?'), then estimate, then call. NEVER silently assume a default size. " +
-  "(c) Low-variance items like 'an apple', 'cup of black coffee', 'a banana' → propose an estimate in one line, log when they react. " +
-  "If user says they skipped: description='skipped', protein_g=0, calories_kcal=0, log immediately. " +
-  "When logging with an estimate, mention the assumption in the confirmation: 'Logged: Budweiser Magnum 500ml (~210 kcal). Tell me if it was different.' " +
+  "Log a meal. Capture the user's description verbatim. " +
+  "ALL THREE of `portion_assumed`, `calories_kcal`, `protein_g` are REQUIRED — the tool refuses calls without them. " +
+  "DO NOT silently invent values. Three buckets:\n" +
+  "(a) Specific quantities ('100g chicken breast', '2 large eggs', '200ml milk') → portion_assumed echoes the user's exact words; estimate accurately and log immediately.\n" +
+  "(b) HIGH-VARIANCE items where size dramatically changes calories (alcohol bottle/can size, pizza slices/size, rice/pasta/curry portions, restaurant dishes, paratha count, fried snacks, sweets, smoothie ml) → DO NOT CALL THIS TOOL YET. Ask the user one short clarifying question first ('Budweiser Magnum: 330ml, 500ml, or 650ml?'). After they answer, set `portion_assumed` to the answered size and log.\n" +
+  "(c) Low-variance ambiguous items ('an apple', 'a banana', 'cup of black coffee') → propose an estimate in one short line; log when they react.\n" +
+  "If user says they skipped: description='skipped', portion_assumed='n/a (skipped)', protein_g=0, calories_kcal=0, log immediately. " +
+  "The summary returned by the tool includes `portion_assumed` — repeat that to the user in your reply so they can catch wrong assumptions. " +
   "Default `eaten_at` to now.";
 
 export function registerLogMeal(server: McpServer, ctx: UserContext): void {
@@ -31,23 +32,31 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
           .string()
           .min(1)
           .describe(
-            "What was eaten, verbatim. For skipped meals, use 'skipped'.",
+            "What was eaten, verbatim from the user. For skipped meals, use 'skipped'.",
+          ),
+        portion_assumed: z
+          .string()
+          .min(1)
+          .describe(
+            "REQUIRED. The exact portion you're committing to, in plain English so the user can verify. " +
+              "Examples: 'Budweiser Magnum 500ml bottle', 'half kachori, deep-fried, ~60g', " +
+              "'2 large eggs scrambled with butter', 'full plate chicken biryani, restaurant size'. " +
+              "If the user gave a specific quantity, echo it. If you assumed a size, write the assumed size " +
+              "(but you should have asked first for high-variance items per the description).",
           ),
         protein_g: z
           .number()
           .int()
           .nonnegative()
-          .optional()
           .describe(
-            'Protein in grams. Only fill if the user states it or it can be confidently estimated.',
+            'REQUIRED. Protein in grams for the portion described in portion_assumed. Use 0 for items with negligible protein (e.g. soft drinks, beer).',
           ),
         calories_kcal: z
           .number()
           .int()
           .nonnegative()
-          .optional()
           .describe(
-            'Calories in kcal. Only fill if the user states it or it can be confidently estimated from specific items.',
+            'REQUIRED. Calories in kcal for the portion described in portion_assumed. Use 0 for water and other zero-calorie items.',
           ),
         notes: z
           .string()
@@ -67,6 +76,7 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
     async (args) => {
       const row = await insertMeal(ctx.db, ctx.userId, {
         description: args.description,
+        portion_assumed: args.portion_assumed,
         protein_g: args.protein_g,
         calories_kcal: args.calories_kcal,
         notes: args.notes,
@@ -75,13 +85,9 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
       });
 
       const time = istTimeString(new Date(row.eaten_at), ctx.timezone);
-      const macroParts: string[] = [];
-      if (row.protein_g != null) macroParts.push(`${row.protein_g}g protein`);
-      if (row.calories_kcal != null)
-        macroParts.push(`${row.calories_kcal}kcal`);
-      const macroSuffix =
-        macroParts.length > 0 ? ` (${macroParts.join(', ')})` : '';
-      const summary = `Logged: ${row.description}${macroSuffix} at ${time}`;
+      const summary =
+        `Logged: ${row.description} — assumed ${row.portion_assumed} (${row.calories_kcal} kcal, ${row.protein_g}g protein) at ${time}. ` +
+        `Tell the user the assumed portion so they can correct if wrong.`;
 
       return {
         content: [
