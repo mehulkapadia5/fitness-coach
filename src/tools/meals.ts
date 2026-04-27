@@ -5,7 +5,14 @@ import { istTimeString } from '../time.js';
 import type { UserContext } from './types.js';
 
 const description =
-  'Log a meal. Call when the user mentions eating ("had eggs and toast", "lunch was chicken tikka bowl", "skipped dinner"). Capture the user\'s description verbatim. ALWAYS fill `protein_g` and `calories_kcal` — never call this tool without them. For specific quantities ("100g chicken breast") use accurate values and call immediately. For ambiguous portions ("a kachori", "some pasta") propose your best mid-range estimate to the user in one short line ("logging half kachori as ~150 kcal — sound right?") and ONLY call this tool after they confirm. If they push back, adjust and re-confirm. If user says they skipped, log it with description=\'skipped\' and protein_g=0, calories_kcal=0 in a single immediate call. Default `eaten_at` to now.';
+  "Log a meal. Capture the user's description verbatim. ALWAYS fill `protein_g` and `calories_kcal` — never call this tool without them. " +
+  "BEFORE calling, decide which bucket the meal falls into: " +
+  "(a) Specific quantities like '100g chicken breast', '2 eggs', '200ml milk' → estimate accurately and call immediately. " +
+  "(b) HIGH-VARIANCE items where size dramatically changes calories (alcohol bottle/can size, pizza slices/size, rice/pasta/curry portions, restaurant dishes, paratha count, fried snacks, sweets, smoothie ml) → DO NOT call this tool yet. Ask the user one short clarifying question about size first ('Budweiser Magnum: 330ml, 500ml, or 650ml?'), then estimate, then call. NEVER silently assume a default size. " +
+  "(c) Low-variance items like 'an apple', 'cup of black coffee', 'a banana' → propose an estimate in one line, log when they react. " +
+  "If user says they skipped: description='skipped', protein_g=0, calories_kcal=0, log immediately. " +
+  "When logging with an estimate, mention the assumption in the confirmation: 'Logged: Budweiser Magnum 500ml (~210 kcal). Tell me if it was different.' " +
+  "Default `eaten_at` to now.";
 
 export function registerLogMeal(server: McpServer, ctx: UserContext): void {
   server.registerTool(
