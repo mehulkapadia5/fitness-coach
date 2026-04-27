@@ -7,12 +7,22 @@ import { registerLog } from './tools/logs.js';
 import { registerLogWorkout } from './tools/workouts.js';
 import { registerRecent } from './tools/recent.js';
 import { registerClearTarget, registerSetTarget } from './tools/targets.js';
+import type { UserContext } from './tools/types.js';
 
-export function buildServer(db: D1Database, publicOrigin: string): McpServer {
+/**
+ * Construct an MCP server bound to a single user's context. Built fresh
+ * per request — the OAuth provider's apiHandler is invoked with the
+ * authenticated user's props on every call, and we wire those through to
+ * each tool registration so every DB query naturally scopes to the user.
+ */
+export function buildServer(
+  ctx: UserContext,
+  publicOrigin: string,
+): McpServer {
   const server = new McpServer(
     {
       name: 'fitness-coach',
-      version: '1.0.0',
+      version: '2.0.0',
       title: 'Fitness Coach',
       icons: [
         {
@@ -31,15 +41,13 @@ export function buildServer(db: D1Database, publicOrigin: string): McpServer {
     },
   );
 
-  const getDB = (): D1Database => db;
-
-  registerGetContext(server, getDB);
-  registerLogWorkout(server, getDB);
-  registerLogMeal(server, getDB);
-  registerLog(server, getDB);
-  registerSetTarget(server, getDB);
-  registerClearTarget(server, getDB);
-  registerRecent(server, getDB);
+  registerGetContext(server, ctx);
+  registerLogWorkout(server, ctx);
+  registerLogMeal(server, ctx);
+  registerLog(server, ctx);
+  registerSetTarget(server, ctx);
+  registerClearTarget(server, ctx);
+  registerRecent(server, ctx);
 
   return server;
 }

@@ -6,20 +6,21 @@ import {
   targetsSince,
   workoutsSince,
 } from '../db.js';
+import type { UserContext } from './types.js';
 
 const description =
   'Fetch recent rows from a table. Use when the user asks about a longer period than `get_context` covers (e.g. "show me my workouts this month", "what have I been eating recently", "show me targets I\'ve set"). Max 90 days.';
 
 export function registerRecent(
   server: McpServer,
-  getDB: () => D1Database,
+  ctx: UserContext,
 ): void {
   server.registerTool(
     'recent',
     {
       description,
       annotations: {
-        title: 'Fetch recent rows from workouts, meals, or logs',
+        title: 'Fetch recent rows from workouts, meals, logs, or targets',
         readOnlyHint: true,
         idempotentHint: true,
         openWorldHint: false,
@@ -37,20 +38,34 @@ export function registerRecent(
       },
     },
     async (args) => {
-      const db = getDB();
       let rows: unknown[];
       switch (args.table) {
         case 'workouts':
-          rows = await workoutsSince(db, args.days);
+          rows = await workoutsSince(
+            ctx.db,
+            ctx.userId,
+            args.days,
+            ctx.timezone,
+          );
           break;
         case 'meals':
-          rows = await mealsSince(db, args.days);
+          rows = await mealsSince(
+            ctx.db,
+            ctx.userId,
+            args.days,
+            ctx.timezone,
+          );
           break;
         case 'logs':
-          rows = await logsSince(db, args.days);
+          rows = await logsSince(ctx.db, ctx.userId, args.days, ctx.timezone);
           break;
         case 'targets':
-          rows = await targetsSince(db, args.days);
+          rows = await targetsSince(
+            ctx.db,
+            ctx.userId,
+            args.days,
+            ctx.timezone,
+          );
           break;
       }
 

@@ -2,14 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { insertLog } from '../db.js';
 import { istTimeString } from '../time.js';
+import type { UserContext } from './types.js';
 
 const description =
-  "Universal logger for anything that isn't a workout or meal — mood, energy, sleep notes, observations, anything the user wants tracked. The `kind` field is free-form (e.g. 'mood', 'energy', 'sleep', 'note', 'symptom', 'fap'). Use this generously — when in doubt, log it. The user values being able to look back at random notes later.";
+  "Universal logger for anything that isn't a workout or meal — mood, energy, sleep notes, observations, anything the user wants tracked. The `kind` field is free-form (e.g. 'mood', 'energy', 'sleep', 'note', 'symptom'). Use this generously — when in doubt, log it. The user values being able to look back at random notes later.";
 
-export function registerLog(
-  server: McpServer,
-  getDB: () => D1Database,
-): void {
+export function registerLog(server: McpServer, ctx: UserContext): void {
   server.registerTool(
     'log',
     {
@@ -37,14 +35,15 @@ export function registerLog(
       },
     },
     async (args) => {
-      const row = await insertLog(getDB(), {
+      const row = await insertLog(ctx.db, ctx.userId, {
         kind: args.kind,
         value: args.value,
         recorded_at: args.recorded_at,
+        timezone: ctx.timezone,
       });
 
-      const time = istTimeString(new Date(row.recorded_at));
-      const summary = `Logged ${row.kind}=${row.value} at ${time} IST`;
+      const time = istTimeString(new Date(row.recorded_at), ctx.timezone);
+      const summary = `Logged ${row.kind}=${row.value} at ${time}`;
 
       return {
         content: [

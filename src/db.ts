@@ -12,8 +12,20 @@ export type WorkoutType =
 
 export type Intensity = 'light' | 'moderate' | 'heavy';
 
+export interface UserRow {
+  id: string;
+  google_sub: string;
+  email: string;
+  name: string | null;
+  picture_url: string | null;
+  timezone: string;
+  created_at: string;
+  last_login_at: string | null;
+}
+
 export interface WorkoutRow {
   id: string;
+  user_id: string;
   done_on: string;
   done_at: string;
   type: WorkoutType;
@@ -25,6 +37,7 @@ export interface WorkoutRow {
 
 export interface MealRow {
   id: string;
+  user_id: string;
   eaten_on: string;
   eaten_at: string;
   description: string;
@@ -39,6 +52,7 @@ export type TargetComparison = 'gte' | 'lte' | 'eq';
 
 export interface TargetRow {
   id: string;
+  user_id: string;
   kind: string;
   target_value: number;
   unit: string;
@@ -53,6 +67,7 @@ export interface TargetRow {
 
 export interface LogRow {
   id: string;
+  user_id: string;
   recorded_on: string;
   recorded_at: string;
   kind: string;
@@ -66,26 +81,127 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
+// =============================================================================
+// USERS
+// =============================================================================
+
+/**
+ * Find an existing user by their Google `sub` (stable user identifier) or
+ * create a new one. Updates last_login_at every call.
+ */
+export async function upsertUserByGoogle(
+  db: D1Database,
+  args: {
+    google_sub: string;
+    email: string;
+    name?: string;
+    picture_url?: string;
+    timezone?: string;
+  },
+): Promise<UserRow> {
+  const now = nowUTCISO();
+  const existing = await db
+    .prepare(
+      `SELECT id, google_sub, email, name, picture_url, timezone, created_at, last_login_at
+         FROM users WHERE google_sub = ?`,
+    )
+    .bind(args.google_sub)
+    .first<UserRow>();
+
+  if (existing) {
+    // Update mutable fields + last_login_at, keep id stable.
+    await db
+      .prepare(
+        `UPDATE users
+            SET email = ?, name = ?, picture_url = ?, last_login_at = ?
+          WHERE id = ?`,
+      )
+      .bind(
+        args.email,
+        args.name ?? existing.name,
+        args.picture_url ?? existing.picture_url,
+        now,
+        existing.id,
+      )
+      .run();
+    return {
+      ...existing,
+      email: args.email,
+      name: args.name ?? existing.name,
+      picture_url: args.picture_url ?? existing.picture_url,
+      last_login_at: now,
+    };
+  }
+
+  const id = newId();
+  const timezone = args.timezone ?? 'Asia/Kolkata';
+  await db
+    .prepare(
+      `INSERT INTO users (id, google_sub, email, name, picture_url, timezone, last_login_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      args.google_sub,
+      args.email,
+      args.name ?? null,
+      args.picture_url ?? null,
+      timezone,
+      now,
+    )
+    .run();
+  return {
+    id,
+    google_sub: args.google_sub,
+    email: args.email,
+    name: args.name ?? null,
+    picture_url: args.picture_url ?? null,
+    timezone,
+    created_at: now,
+    last_login_at: now,
+  };
+}
+
+export async function getUser(
+  db: D1Database,
+  userId: string,
+): Promise<UserRow | null> {
+  return db
+    .prepare(
+      `SELECT id, google_sub, email, name, picture_url, timezone, created_at, last_login_at
+         FROM users WHERE id = ?`,
+    )
+    .bind(userId)
+    .first<UserRow>();
+}
+
+// =============================================================================
+// WORKOUTS
+// =============================================================================
+
 export async function insertWorkout(
   db: D1Database,
+  userId: string,
   args: {
     type: WorkoutType;
     intensity?: Intensity;
     duration_min?: number;
     notes?: string;
-    done_on?: string; // YYYY-MM-DD in IST; defaults to today IST
+    done_on?: string; // YYYY-MM-DD in user's timezone; defaults to today
+    timezone?: string; // for resolving the default done_on
   },
 ): Promise<WorkoutRow> {
   const id = newId();
   const done_at = nowUTCISO();
-  const done_on = args.done_on ?? istDateString();
+  const done_on = args.done_on ?? istDateString(new Date(), args.timezone);
   await db
     .prepare(
-      `INSERT INTO workouts (id, done_on, done_at, type, intensity, duration_min, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO workouts (id, user_id, done_on, done_at, type, intensity, duration_min, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
+      userId,
       done_on,
       done_at,
       args.type,
@@ -96,6 +212,7 @@ export async function insertWorkout(
     .run();
   return {
     id,
+    user_id: userId,
     done_on,
     done_at,
     type: args.type,
@@ -106,26 +223,52 @@ export async function insertWorkout(
   };
 }
 
+export async function workoutsSince(
+  db: D1Database,
+  userId: string,
+  daysBack: number,
+  timezone?: string,
+): Promise<WorkoutRow[]> {
+  const since = daysAgoIST(daysBack, timezone);
+  const { results } = await db
+    .prepare(
+      `SELECT id, user_id, done_on, done_at, type, intensity, duration_min, notes, created_at
+         FROM workouts
+        WHERE user_id = ? AND done_on >= ?
+        ORDER BY done_on DESC, done_at DESC`,
+    )
+    .bind(userId, since)
+    .all<WorkoutRow>();
+  return results ?? [];
+}
+
+// =============================================================================
+// MEALS
+// =============================================================================
+
 export async function insertMeal(
   db: D1Database,
+  userId: string,
   args: {
     description: string;
     protein_g?: number;
     calories_kcal?: number;
     notes?: string;
-    eaten_at?: string; // ISO-8601 UTC; defaults to now
+    eaten_at?: string;
+    timezone?: string;
   },
 ): Promise<MealRow> {
   const id = newId();
   const eaten_at = args.eaten_at ?? nowUTCISO();
-  const eaten_on = istDateString(new Date(eaten_at));
+  const eaten_on = istDateString(new Date(eaten_at), args.timezone);
   await db
     .prepare(
-      `INSERT INTO meals (id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meals (id, user_id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
+      userId,
       eaten_on,
       eaten_at,
       args.description,
@@ -136,6 +279,7 @@ export async function insertMeal(
     .run();
   return {
     id,
+    user_id: userId,
     eaten_on,
     eaten_at,
     description: args.description,
@@ -146,26 +290,69 @@ export async function insertMeal(
   };
 }
 
+export async function mealsOn(
+  db: D1Database,
+  userId: string,
+  dateISO: string,
+): Promise<MealRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, user_id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes, created_at
+         FROM meals
+        WHERE user_id = ? AND eaten_on = ?
+        ORDER BY eaten_at ASC`,
+    )
+    .bind(userId, dateISO)
+    .all<MealRow>();
+  return results ?? [];
+}
+
+export async function mealsSince(
+  db: D1Database,
+  userId: string,
+  daysBack: number,
+  timezone?: string,
+): Promise<MealRow[]> {
+  const since = daysAgoIST(daysBack, timezone);
+  const { results } = await db
+    .prepare(
+      `SELECT id, user_id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes, created_at
+         FROM meals
+        WHERE user_id = ? AND eaten_on >= ?
+        ORDER BY eaten_on DESC, eaten_at DESC`,
+    )
+    .bind(userId, since)
+    .all<MealRow>();
+  return results ?? [];
+}
+
+// =============================================================================
+// LOGS
+// =============================================================================
+
 export async function insertLog(
   db: D1Database,
+  userId: string,
   args: {
     kind: string;
     value: string;
-    recorded_at?: string; // ISO-8601 UTC; defaults to now
+    recorded_at?: string;
+    timezone?: string;
   },
 ): Promise<LogRow> {
   const id = newId();
   const recorded_at = args.recorded_at ?? nowUTCISO();
-  const recorded_on = istDateString(new Date(recorded_at));
+  const recorded_on = istDateString(new Date(recorded_at), args.timezone);
   await db
     .prepare(
-      `INSERT INTO logs (id, recorded_on, recorded_at, kind, value)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO logs (id, user_id, recorded_on, recorded_at, kind, value)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, recorded_on, recorded_at, args.kind, args.value)
+    .bind(id, userId, recorded_on, recorded_at, args.kind, args.value)
     .run();
   return {
     id,
+    user_id: userId,
     recorded_on,
     recorded_at,
     kind: args.kind,
@@ -174,125 +361,88 @@ export async function insertLog(
   };
 }
 
-export async function workoutsSince(
-  db: D1Database,
-  daysBack: number,
-): Promise<WorkoutRow[]> {
-  const since = daysAgoIST(daysBack);
-  const { results } = await db
-    .prepare(
-      `SELECT id, done_on, done_at, type, intensity, duration_min, notes, created_at
-         FROM workouts
-        WHERE done_on >= ?
-        ORDER BY done_on DESC, done_at DESC`,
-    )
-    .bind(since)
-    .all<WorkoutRow>();
-  return results ?? [];
-}
-
-export async function mealsOn(
-  db: D1Database,
-  dateISO: string,
-): Promise<MealRow[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes, created_at
-         FROM meals
-        WHERE eaten_on = ?
-        ORDER BY eaten_at ASC`,
-    )
-    .bind(dateISO)
-    .all<MealRow>();
-  return results ?? [];
-}
-
-export async function mealsSince(
-  db: D1Database,
-  daysBack: number,
-): Promise<MealRow[]> {
-  const since = daysAgoIST(daysBack);
-  const { results } = await db
-    .prepare(
-      `SELECT id, eaten_on, eaten_at, description, protein_g, calories_kcal, notes, created_at
-         FROM meals
-        WHERE eaten_on >= ?
-        ORDER BY eaten_on DESC, eaten_at DESC`,
-    )
-    .bind(since)
-    .all<MealRow>();
-  return results ?? [];
-}
-
 export async function logsOn(
   db: D1Database,
+  userId: string,
   dateISO: string,
 ): Promise<LogRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, recorded_on, recorded_at, kind, value, created_at
+      `SELECT id, user_id, recorded_on, recorded_at, kind, value, created_at
          FROM logs
-        WHERE recorded_on = ?
+        WHERE user_id = ? AND recorded_on = ?
         ORDER BY recorded_at ASC`,
     )
-    .bind(dateISO)
+    .bind(userId, dateISO)
     .all<LogRow>();
   return results ?? [];
 }
 
 export async function logsBetween(
   db: D1Database,
+  userId: string,
   fromDate: string,
   toDateExclusive: string,
   limit: number,
 ): Promise<LogRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, recorded_on, recorded_at, kind, value, created_at
+      `SELECT id, user_id, recorded_on, recorded_at, kind, value, created_at
          FROM logs
-        WHERE recorded_on >= ? AND recorded_on < ?
+        WHERE user_id = ? AND recorded_on >= ? AND recorded_on < ?
         ORDER BY recorded_on DESC, recorded_at DESC
         LIMIT ?`,
     )
-    .bind(fromDate, toDateExclusive, limit)
+    .bind(userId, fromDate, toDateExclusive, limit)
     .all<LogRow>();
   return results ?? [];
 }
 
 export async function logsSince(
   db: D1Database,
+  userId: string,
   daysBack: number,
+  timezone?: string,
 ): Promise<LogRow[]> {
-  const since = daysAgoIST(daysBack);
+  const since = daysAgoIST(daysBack, timezone);
   const { results } = await db
     .prepare(
-      `SELECT id, recorded_on, recorded_at, kind, value, created_at
+      `SELECT id, user_id, recorded_on, recorded_at, kind, value, created_at
          FROM logs
-        WHERE recorded_on >= ?
+        WHERE user_id = ? AND recorded_on >= ?
         ORDER BY recorded_on DESC, recorded_at DESC`,
     )
-    .bind(since)
+    .bind(userId, since)
     .all<LogRow>();
   return results ?? [];
 }
 
-const TARGET_COLS =
-  'id, kind, target_value, unit, period, comparison, set_on, set_at, deactivated_at, notes, created_at';
+// =============================================================================
+// TARGETS
+// =============================================================================
 
-export async function activeTargets(db: D1Database): Promise<TargetRow[]> {
+const TARGET_COLS =
+  'id, user_id, kind, target_value, unit, period, comparison, set_on, set_at, deactivated_at, notes, created_at';
+
+export async function activeTargets(
+  db: D1Database,
+  userId: string,
+): Promise<TargetRow[]> {
   const { results } = await db
     .prepare(
       `SELECT ${TARGET_COLS}
          FROM targets
-        WHERE deactivated_at IS NULL
+        WHERE user_id = ? AND deactivated_at IS NULL
         ORDER BY set_at DESC`,
     )
+    .bind(userId)
     .all<TargetRow>();
   return results ?? [];
 }
 
 export async function setTarget(
   db: D1Database,
+  userId: string,
   args: {
     kind: string;
     target_value: number;
@@ -300,30 +450,31 @@ export async function setTarget(
     period: TargetPeriod;
     comparison: TargetComparison;
     notes?: string;
+    timezone?: string;
   },
 ): Promise<TargetRow> {
   const id = newId();
   const set_at = nowUTCISO();
-  const set_on = istDateString();
+  const set_on = istDateString(new Date(), args.timezone);
 
-  // Soft-delete any currently active target with the same kind so the
-  // newest one becomes the live one. History stays queryable.
+  // Soft-delete only this user's currently-active target with the same kind.
   await db
     .prepare(
       `UPDATE targets
           SET deactivated_at = ?
-        WHERE kind = ? AND deactivated_at IS NULL`,
+        WHERE user_id = ? AND kind = ? AND deactivated_at IS NULL`,
     )
-    .bind(set_at, args.kind)
+    .bind(set_at, userId, args.kind)
     .run();
 
   await db
     .prepare(
-      `INSERT INTO targets (id, kind, target_value, unit, period, comparison, set_on, set_at, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO targets (id, user_id, kind, target_value, unit, period, comparison, set_on, set_at, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
+      userId,
       args.kind,
       args.target_value,
       args.unit,
@@ -337,6 +488,7 @@ export async function setTarget(
 
   return {
     id,
+    user_id: userId,
     kind: args.kind,
     target_value: args.target_value,
     unit: args.unit,
@@ -352,6 +504,7 @@ export async function setTarget(
 
 export async function clearTarget(
   db: D1Database,
+  userId: string,
   kind: string,
 ): Promise<number> {
   const now = nowUTCISO();
@@ -359,32 +512,39 @@ export async function clearTarget(
     .prepare(
       `UPDATE targets
           SET deactivated_at = ?
-        WHERE kind = ? AND deactivated_at IS NULL`,
+        WHERE user_id = ? AND kind = ? AND deactivated_at IS NULL`,
     )
-    .bind(now, kind)
+    .bind(now, userId, kind)
     .run();
   return res.meta.changes ?? 0;
 }
 
 export async function targetsSince(
   db: D1Database,
+  userId: string,
   daysBack: number,
+  timezone?: string,
 ): Promise<TargetRow[]> {
-  const since = daysAgoIST(daysBack);
+  const since = daysAgoIST(daysBack, timezone);
   const { results } = await db
     .prepare(
       `SELECT ${TARGET_COLS}
          FROM targets
-        WHERE set_on >= ?
+        WHERE user_id = ? AND set_on >= ?
         ORDER BY set_at DESC`,
     )
-    .bind(since)
+    .bind(userId, since)
     .all<TargetRow>();
   return results ?? [];
 }
 
+// =============================================================================
+// AGGREGATES (used by get_context for target progress)
+// =============================================================================
+
 export async function sumMealField(
   db: D1Database,
+  userId: string,
   field: 'protein_g' | 'calories_kcal',
   dateISO: string,
 ): Promise<number> {
@@ -392,15 +552,16 @@ export async function sumMealField(
     .prepare(
       `SELECT COALESCE(SUM(${field}), 0) AS total
          FROM meals
-        WHERE eaten_on = ?`,
+        WHERE user_id = ? AND eaten_on = ?`,
     )
-    .bind(dateISO)
+    .bind(userId, dateISO)
     .first<{ total: number }>();
   return row?.total ?? 0;
 }
 
 export async function countWorkoutsBetween(
   db: D1Database,
+  userId: string,
   fromDateInclusive: string,
   toDateInclusive: string,
 ): Promise<number> {
@@ -408,29 +569,26 @@ export async function countWorkoutsBetween(
     .prepare(
       `SELECT COUNT(*) AS n
          FROM workouts
-        WHERE done_on >= ? AND done_on <= ?
+        WHERE user_id = ? AND done_on >= ? AND done_on <= ?
           AND type != 'rest'`,
     )
-    .bind(fromDateInclusive, toDateInclusive)
+    .bind(userId, fromDateInclusive, toDateInclusive)
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
 
 export async function todaySleepHours(
   db: D1Database,
+  userId: string,
   dateISO: string,
 ): Promise<number | null> {
-  // Convention: when Claude logs sleep, it stores the hour count as the
-  // value (e.g. kind='sleep', value='7.5'). If no parseable number is
-  // found we return null and let `get_context` show the target without
-  // progress.
   const { results } = await db
     .prepare(
       `SELECT value FROM logs
-        WHERE recorded_on = ? AND kind = 'sleep'
+        WHERE user_id = ? AND recorded_on = ? AND kind = 'sleep'
         ORDER BY recorded_at DESC`,
     )
-    .bind(dateISO)
+    .bind(userId, dateISO)
     .all<{ value: string }>();
   if (!results || results.length === 0) return null;
   let total = 0;

@@ -10,3 +10,16 @@ binding = "DB"
 database_name = "fitness-coach"
 database_id = "<filled-after-d1-create>"
 migrations_dir = "migrations"
+
+# KV namespace used by @cloudflare/workers-oauth-provider for OAuth state
+# (clients, grants, tokens, plus our pending-auth records during the
+# Google sign-in round-trip). Create once via:
+#   npx wrangler kv namespace create OAUTH_KV
+# then paste the printed `id` below.
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "<filled-after-kv-namespace-create>"
+
+# Secrets to set after first deploy:
+#   npx wrangler secret put GOOGLE_CLIENT_ID
+#   npx wrangler secret put GOOGLE_CLIENT_SECRET

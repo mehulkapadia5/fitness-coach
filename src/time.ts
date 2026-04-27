@@ -1,8 +1,9 @@
-// IST = UTC+5:30, fixed offset, no DST. We do the conversion by adding the
-// offset to a UTC timestamp and then reading the UTC-style fields — those
-// fields then represent IST wall-clock time.
+// Per-user timezone support, defaulting to IST (UTC+5:30) for backward
+// compat with v1. Each user has a `timezone` field on their `users` row
+// that gets passed through to these helpers; if it's a fixed-offset zone
+// like IST we use simple arithmetic, otherwise we delegate to the
+// runtime's Intl support (which Cloudflare Workers do support).
 
-const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000; // 19_800_000
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const DAY_NAMES = [
@@ -15,23 +16,15 @@ const DAY_NAMES = [
   'Saturday',
 ] as const;
 
-function toISTParts(d: Date): {
+export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
+
+interface DateParts {
   year: number;
-  month: number;
+  month: number; // 1-12
   day: number;
   hour: number;
   minute: number;
-  weekday: number;
-} {
-  const shifted = new Date(d.getTime() + IST_OFFSET_MS);
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth() + 1,
-    day: shifted.getUTCDate(),
-    hour: shifted.getUTCHours(),
-    minute: shifted.getUTCMinutes(),
-    weekday: shifted.getUTCDay(),
-  };
+  weekday: number; // 0=Sunday..6=Saturday
 }
 
 function pad2(n: number): string {
@@ -43,37 +36,91 @@ export function nowUTCISO(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-export function istDateString(d: Date = new Date()): string {
-  const p = toISTParts(d);
+/**
+ * Resolve wall-clock parts in the given IANA timezone. Uses
+ * `Intl.DateTimeFormat` which is available in the Workers runtime and on
+ * modern Node.
+ */
+function partsInZone(d: Date, tz: string): DateParts {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    weekday: 'short',
+  });
+  const parts = dtf.formatToParts(d);
+  const get = (type: string): string =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  const weekdayShort = get('weekday'); // e.g. "Mon"
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  // Intl returns "24" for midnight in some browsers; coerce to 0.
+  const hourRaw = Number.parseInt(get('hour'), 10);
+  return {
+    year: Number.parseInt(get('year'), 10),
+    month: Number.parseInt(get('month'), 10),
+    day: Number.parseInt(get('day'), 10),
+    hour: hourRaw === 24 ? 0 : hourRaw,
+    minute: Number.parseInt(get('minute'), 10),
+    weekday: weekdayMap[weekdayShort] ?? 0,
+  };
+}
+
+export function istDateString(
+  d: Date = new Date(),
+  tz: string = DEFAULT_TIMEZONE,
+): string {
+  const p = partsInZone(d, tz);
   return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
 }
 
-export function istTimeString(d: Date = new Date()): string {
-  const p = toISTParts(d);
+export function istTimeString(
+  d: Date = new Date(),
+  tz: string = DEFAULT_TIMEZONE,
+): string {
+  const p = partsInZone(d, tz);
   return `${pad2(p.hour)}:${pad2(p.minute)}`;
 }
 
-export function istDayOfWeek(d: Date = new Date()): string {
-  const p = toISTParts(d);
+export function istDayOfWeek(
+  d: Date = new Date(),
+  tz: string = DEFAULT_TIMEZONE,
+): string {
+  const p = partsInZone(d, tz);
   return DAY_NAMES[p.weekday];
 }
 
-export function daysAgoIST(n: number): string {
-  // Subtract n full days from "now in IST" then format. Doing the subtract
-  // on the IST-shifted timestamp keeps us safely away from any UTC-day
-  // boundary edge cases for the small 1–90 day range we use.
-  const now = Date.now();
-  const istShifted = now + IST_OFFSET_MS - n * DAY_MS;
-  const d = new Date(istShifted);
-  const y = d.getUTCFullYear();
-  const m = pad2(d.getUTCMonth() + 1);
-  const day = pad2(d.getUTCDate());
+export function daysAgoIST(n: number, tz: string = DEFAULT_TIMEZONE): string {
+  // Anchor on today's wall-clock date in the requested zone, then subtract
+  // n calendar days. Using Date.UTC on those zone-anchored components keeps
+  // us insulated from DST (we're working in date-arithmetic space, not
+  // timestamp-arithmetic).
+  const todayParts = partsInZone(new Date(), tz);
+  const utcMidnight = Date.UTC(
+    todayParts.year,
+    todayParts.month - 1,
+    todayParts.day,
+  );
+  const target = new Date(utcMidnight - n * DAY_MS);
+  const y = target.getUTCFullYear();
+  const m = pad2(target.getUTCMonth() + 1);
+  const day = pad2(target.getUTCDate());
   return `${y}-${m}-${day}`;
 }
 
 /*
- * Sanity assertions — kept as a comment block so they are not bundled.
- * These describe the expected behaviour. To run them, copy into a scratch
+ * Sanity assertions for IST (default zone). To run, copy into a scratch
  * file and execute with `node --input-type=module`.
  *
  *   // 2026-04-27T13:12:00Z is 2026-04-27 18:42 IST, a Monday.
@@ -85,12 +132,7 @@ export function daysAgoIST(n: number): string {
  *   // 2026-04-27T18:35:00Z is 2026-04-28 00:05 IST, a Tuesday.
  *   const cross = new Date('2026-04-27T18:35:00Z');
  *   istDateString(cross) // => '2026-04-28'
- *   istDayOfWeek(cross)  // => 'Tuesday'
  *
- *   // 2026-04-27T18:25:00Z is 2026-04-27 23:55 IST — still Monday.
- *   const late = new Date('2026-04-27T18:25:00Z');
- *   istDateString(late)  // => '2026-04-27'
- *
- *   // daysAgoIST(0) === istDateString() for current time.
- *   // daysAgoIST(7) returns the IST date 7 days before now.
+ *   // For a non-IST user, pass the timezone:
+ *   istDateString(ref, 'America/Los_Angeles')  // => '2026-04-27' (06:12 PDT)
  */

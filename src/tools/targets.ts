@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { clearTarget, setTarget } from '../db.js';
+import type { UserContext } from './types.js';
 
 const setDescription =
   'Set or update a personal health target. Call this when the user expresses a goal ("want to hit 150g protein a day", "stay under 2500 cals", "want to train 5x/week", "sleep 8 hours nightly"). DO NOT ask for confirmation. The four well-known kinds with auto-progress in `get_context` are: `protein_g` (daily, gte), `calories_kcal` (daily, lte), `workouts_per_week` (weekly, gte), `sleep_hours` (daily, gte). You can also use any other `kind` for non-standard targets — those will be stored but won\'t get auto-computed progress. Setting a new target with the same `kind` deactivates the previous one (history is preserved).';
@@ -17,7 +18,7 @@ const KIND_HINT_VALUES = [
 
 export function registerSetTarget(
   server: McpServer,
-  getDB: () => D1Database,
+  ctx: UserContext,
 ): void {
   server.registerTool(
     'set_target',
@@ -69,7 +70,10 @@ export function registerSetTarget(
       },
     },
     async (args) => {
-      const row = await setTarget(getDB(), args);
+      const row = await setTarget(ctx.db, ctx.userId, {
+        ...args,
+        timezone: ctx.timezone,
+      });
       const op =
         args.comparison === 'gte'
           ? '≥'
@@ -95,7 +99,7 @@ export function registerSetTarget(
 
 export function registerClearTarget(
   server: McpServer,
-  getDB: () => D1Database,
+  ctx: UserContext,
 ): void {
   server.registerTool(
     'clear_target',
@@ -116,7 +120,7 @@ export function registerClearTarget(
       },
     },
     async ({ kind }) => {
-      const cleared = await clearTarget(getDB(), kind);
+      const cleared = await clearTarget(ctx.db, ctx.userId, kind);
       const summary =
         cleared > 0
           ? `Cleared target: ${kind}`

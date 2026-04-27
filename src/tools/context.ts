@@ -16,9 +16,10 @@ import {
   istDayOfWeek,
   istTimeString,
 } from '../time.js';
+import type { UserContext } from './types.js';
 
 const description =
-  'Call this FIRST in every conversation, before responding to any question about workouts, meals, today, yesterday, or "what should I do." Returns today\'s IST date, day of week, current IST time, the last 7 days of workouts, today\'s meals, recent notes, AND any active targets with current progress (calories, protein, workouts/week, sleep, etc.). Cheap and idempotent — call again any time you\'re uncertain about state. If you skip this, you will give wrong advice about what day it is, what the user did recently, or how they\'re tracking against their goals.';
+  'Call this FIRST in every conversation, before responding to any question about workouts, meals, today, yesterday, or "what should I do." Returns the user\'s local date, day of week, current local time, the last 7 days of workouts, today\'s meals, recent notes, AND any active targets with current progress (calories, protein, workouts/week, sleep, etc.). Cheap and idempotent — call again any time you\'re uncertain about state. If you skip this, you will give wrong advice about what day it is, what the user did recently, or how they\'re tracking against their goals.';
 
 interface TargetWithProgress {
   kind: string;
@@ -33,27 +34,28 @@ interface TargetWithProgress {
 }
 
 async function computeTargetProgress(
-  db: D1Database,
+  ctx: UserContext,
   target: TargetRow,
   today: string,
 ): Promise<TargetWithProgress> {
   let current: number | null = null;
 
-  // Auto-progress for the four well-known kinds. Anything else is stored
-  // and surfaced verbatim (current_value=null) so Claude can still factor
-  // it in qualitatively.
   if (target.kind === 'protein_g' && target.period === 'daily') {
-    current = await sumMealField(db, 'protein_g', today);
+    current = await sumMealField(ctx.db, ctx.userId, 'protein_g', today);
   } else if (target.kind === 'calories_kcal' && target.period === 'daily') {
-    current = await sumMealField(db, 'calories_kcal', today);
+    current = await sumMealField(ctx.db, ctx.userId, 'calories_kcal', today);
   } else if (
     target.kind === 'workouts_per_week' &&
     target.period === 'weekly'
   ) {
-    // Last 7 IST days inclusive of today.
-    current = await countWorkoutsBetween(db, daysAgoIST(6), today);
+    current = await countWorkoutsBetween(
+      ctx.db,
+      ctx.userId,
+      daysAgoIST(6, ctx.timezone),
+      today,
+    );
   } else if (target.kind === 'sleep_hours' && target.period === 'daily') {
-    current = await todaySleepHours(db, today);
+    current = await todaySleepHours(ctx.db, ctx.userId, today);
   }
 
   let remaining: number | null = null;
@@ -61,7 +63,6 @@ async function computeTargetProgress(
     if (target.comparison === 'gte') {
       remaining = Math.max(0, target.target_value - current);
     } else if (target.comparison === 'lte') {
-      // Headroom: how much you can still consume before hitting the cap.
       remaining = target.target_value - current;
     } else {
       remaining = target.target_value - current;
@@ -83,14 +84,15 @@ async function computeTargetProgress(
 
 export function registerGetContext(
   server: McpServer,
-  getDB: () => D1Database,
+  ctx: UserContext,
 ): void {
   server.registerTool(
     'get_context',
     {
       description,
       annotations: {
-        title: "Get today's IST date, time, recent activity, and active targets",
+        title:
+          "Get today's local date, time, recent activity, and active targets",
         readOnlyHint: true,
         idempotentHint: true,
         openWorldHint: false,
@@ -98,21 +100,26 @@ export function registerGetContext(
       inputSchema: {},
     },
     async () => {
-      const db = getDB();
-      const today = istDateString();
+      const today = istDateString(new Date(), ctx.timezone);
 
       const [workouts, todayMeals, todayLogs, recentLogs, targets] =
         await Promise.all([
-          workoutsSince(db, 7),
-          mealsOn(db, today),
-          logsOn(db, today),
-          logsBetween(db, daysAgoIST(7), today, 5),
-          activeTargets(db),
+          workoutsSince(ctx.db, ctx.userId, 7, ctx.timezone),
+          mealsOn(ctx.db, ctx.userId, today),
+          logsOn(ctx.db, ctx.userId, today),
+          logsBetween(
+            ctx.db,
+            ctx.userId,
+            daysAgoIST(7, ctx.timezone),
+            today,
+            5,
+          ),
+          activeTargets(ctx.db, ctx.userId),
         ]);
 
       const last_7_days_workouts = workouts.map((w) => ({
         date: w.done_on,
-        day: istDayOfWeek(new Date(w.done_at)),
+        day: istDayOfWeek(new Date(w.done_at), ctx.timezone),
         type: w.type,
         intensity: w.intensity,
         duration_min: w.duration_min,
@@ -120,7 +127,7 @@ export function registerGetContext(
       }));
 
       const today_meals = todayMeals.map((m) => ({
-        time: istTimeString(new Date(m.eaten_at)),
+        time: istTimeString(new Date(m.eaten_at), ctx.timezone),
         description: m.description,
         protein_g: m.protein_g,
         calories_kcal: m.calories_kcal,
@@ -128,7 +135,7 @@ export function registerGetContext(
       }));
 
       const today_logs = todayLogs.map((l) => ({
-        time: istTimeString(new Date(l.recorded_at)),
+        time: istTimeString(new Date(l.recorded_at), ctx.timezone),
         kind: l.kind,
         value: l.value,
       }));
@@ -140,14 +147,15 @@ export function registerGetContext(
       }));
 
       const active_targets = await Promise.all(
-        targets.map((t) => computeTargetProgress(db, t, today)),
+        targets.map((t) => computeTargetProgress(ctx, t, today)),
       );
 
       const payload = {
+        user: ctx.userDisplayName,
         today,
-        today_day_of_week: istDayOfWeek(),
-        current_time_ist: istTimeString(),
-        timezone: 'Asia/Kolkata (IST, UTC+5:30)',
+        today_day_of_week: istDayOfWeek(new Date(), ctx.timezone),
+        current_time_local: istTimeString(new Date(), ctx.timezone),
+        timezone: ctx.timezone,
         active_targets,
         last_7_days_workouts,
         today_meals,

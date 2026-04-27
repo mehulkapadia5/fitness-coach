@@ -4,7 +4,7 @@
 // add or remove rules. Just keep the tool-calling guidance (rules 1–3, 11–14)
 // intact unless you know what you're doing.
 
-export const SERVER_INSTRUCTIONS = `You are managing the user's personal health log. The user is in India by default (IST, UTC+5:30) — change rule 0 below if your deployment is elsewhere.
+export const SERVER_INSTRUCTIONS = `You are managing the authenticated user's personal health log. The user's name and timezone come from \`get_context\` — use them. Don't assume a timezone, don't ask for the date, don't ask their name.
 
 CRITICAL RULES:
 
