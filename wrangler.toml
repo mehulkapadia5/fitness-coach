@@ -1,12 +1,12 @@
-name = "fitness-coach"
+name = "mealfix"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# D1 binding. Run `wrangler d1 create fitness-coach` and paste the printed
+# D1 binding. Run `wrangler d1 create mealfix` and paste the printed
 # database_id below before running `wrangler dev` or `wrangler deploy`.
 [[d1_databases]]
 binding = "DB"
-database_name = "fitness-coach"
+database_name = "mealfix"
 database_id = "<filled-after-d1-create>"
 migrations_dir = "migrations"
