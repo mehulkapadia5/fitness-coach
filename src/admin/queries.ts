@@ -74,15 +74,19 @@ export interface ActivityRow {
 /**
  * Recent activity feed across all users — last N rows from the four
  * data tables, joined with user info, sorted by time desc.
+ *
+ * SQLite requires each per-table ORDER BY / LIMIT to live inside a
+ * subquery (you can't put them on a SELECT that is itself a branch of
+ * UNION ALL — the parser treats trailing ORDER BY as belonging to the
+ * whole compound select). So each branch is wrapped in `SELECT * FROM
+ * (... ORDER BY ... LIMIT ...)`.
  */
 export async function recentActivity(
   db: D1Database,
   limit: number,
 ): Promise<ActivityRow[]> {
-  // Build four queries with a uniform shape via UNION ALL. Bind `limit`
-  // four times (once per subquery) plus once more on the outer ORDER BY.
   const sql = `
-    WITH activity AS (
+    SELECT user_id, user_email, user_name, source, ts, summary FROM (
       SELECT
         w.user_id,
         u.email AS user_email,
@@ -95,39 +99,40 @@ export async function recentActivity(
         ) AS summary
       FROM workouts w JOIN users u ON u.id = w.user_id
       ORDER BY w.done_at DESC LIMIT ?
-
-      UNION ALL
-
+    )
+    UNION ALL
+    SELECT user_id, user_email, user_name, source, ts, summary FROM (
       SELECT
-        m.user_id, u.email, u.name, 'meal', m.eaten_at,
+        m.user_id, u.email AS user_email, u.name AS user_name,
+        'meal' AS source, m.eaten_at AS ts,
         ('Meal: ' || m.description ||
           CASE WHEN m.protein_g IS NOT NULL THEN ' (' || m.protein_g || 'g protein)' ELSE '' END
-        )
+        ) AS summary
       FROM meals m JOIN users u ON u.id = m.user_id
       ORDER BY m.eaten_at DESC LIMIT ?
-
-      UNION ALL
-
+    )
+    UNION ALL
+    SELECT user_id, user_email, user_name, source, ts, summary FROM (
       SELECT
-        l.user_id, u.email, u.name, 'log', l.recorded_at,
-        ('Log: ' || l.kind || '=' || l.value)
+        l.user_id, u.email AS user_email, u.name AS user_name,
+        'log' AS source, l.recorded_at AS ts,
+        ('Log: ' || l.kind || '=' || l.value) AS summary
       FROM logs l JOIN users u ON u.id = l.user_id
       ORDER BY l.recorded_at DESC LIMIT ?
-
-      UNION ALL
-
+    )
+    UNION ALL
+    SELECT user_id, user_email, user_name, source, ts, summary FROM (
       SELECT
-        t.user_id, u.email, u.name, 'target', t.set_at,
+        t.user_id, u.email AS user_email, u.name AS user_name,
+        'target' AS source, t.set_at AS ts,
         ('Target: ' || t.kind || ' ' || t.comparison || ' ' || t.target_value || t.unit ||
           ' (' || t.period || ')'
-        )
+        ) AS summary
       FROM targets t JOIN users u ON u.id = t.user_id
       ORDER BY t.set_at DESC LIMIT ?
     )
-    SELECT user_id, user_email, user_name, source, ts, summary
-      FROM activity
-     ORDER BY ts DESC
-     LIMIT ?
+    ORDER BY ts DESC
+    LIMIT ?
   `;
   const { results } = await db
     .prepare(sql)

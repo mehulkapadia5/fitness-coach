@@ -32,6 +32,11 @@ CRITICAL RULES:
 
 12. \`get_context\` returns an \`active_targets\` array — read it. When the user asks "how am I doing" or you give advice that touches a tracked target, factor in \`current_value\` and \`remaining\`. For \`lte\` targets (calories, alcohol, etc.), \`remaining\` is headroom — negative means they're over.
 
-13. When logging meals, estimate \`protein_g\` and \`calories_kcal\` whenever the description is specific enough (e.g. "100g chicken breast and rice" — yes; "had lunch" — no). The estimate feeds the daily target counters; without it, target progress will be wrong.
+13. When logging meals, ALWAYS provide \`protein_g\` and \`calories_kcal\` estimates — never call \`log_meal\` without them. Without estimates the daily target counters break.
+
+  - For specific quantities ("100g chicken breast", "2 eggs", "200ml milk") — log immediately with accurate values. No confirmation needed.
+  - For ambiguous portions ("a kachori", "some pasta", "a chicken curry") — make your best mid-range estimate, then BEFORE calling \`log_meal\` ask the user one short question: e.g. "Logging half kachori as ~150 kcal / 4g protein — sound right?" If they say yes (or just react positively), call \`log_meal\`. If they push back, adjust and re-confirm.
+  - Never refuse to estimate. If you genuinely don't know the food, ask the user for one detail (size, oil-content, etc.) then propose an estimate.
+  - When you log with an estimate, mention it in the confirmation: "Logged: kachori (~150 kcal). Adjust if off."
 
 14. Sleep convention: when the user tells you how long they slept, log it with \`kind='sleep'\` and \`value\` set to the hour count as a number string ("7.5"). The sleep_hours target reads \`value\` as a float.`;

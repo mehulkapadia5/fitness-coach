@@ -5,7 +5,7 @@ import { istTimeString } from '../time.js';
 import type { UserContext } from './types.js';
 
 const description =
-  'Log a meal. Call this when the user mentions eating ("had eggs and toast", "lunch was chicken tikka bowl", "skipped dinner"). DO NOT ask for confirmation. Capture the user\'s description verbatim. Fill `protein_g` and `calories_kcal` if the user states them OR you can confidently estimate from specific items (e.g. "100g chicken breast" — yes; "had lunch" — no). If user says they skipped, log it with description=\'skipped\' and a notes field. Default `eaten_at` to now. The values you log here roll into daily target progress shown in `get_context`, so estimating is useful when targets are active.';
+  'Log a meal. Call when the user mentions eating ("had eggs and toast", "lunch was chicken tikka bowl", "skipped dinner"). Capture the user\'s description verbatim. ALWAYS fill `protein_g` and `calories_kcal` — never call this tool without them. For specific quantities ("100g chicken breast") use accurate values and call immediately. For ambiguous portions ("a kachori", "some pasta") propose your best mid-range estimate to the user in one short line ("logging half kachori as ~150 kcal — sound right?") and ONLY call this tool after they confirm. If they push back, adjust and re-confirm. If user says they skipped, log it with description=\'skipped\' and protein_g=0, calories_kcal=0 in a single immediate call. Default `eaten_at` to now.';
 
 export function registerLogMeal(server: McpServer, ctx: UserContext): void {
   server.registerTool(
