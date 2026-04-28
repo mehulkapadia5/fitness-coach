@@ -3,6 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Custom domain. Requires `mealfix.club` to be a Cloudflare-managed zone
+# on the same account (mehulkapadia15@gmail.com). Cloudflare auto-provisions
+# DNS + SSL for the subdomain on deploy.
+[[routes]]
+pattern = "bios.mealfix.club"
+custom_domain = true
+
 # D1 binding. Run `wrangler d1 create fitness-coach` and paste the printed
 # database_id below before running `wrangler dev` or `wrangler deploy`.
 [[d1_databases]]
