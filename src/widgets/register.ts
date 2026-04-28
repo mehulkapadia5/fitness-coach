@@ -1,39 +1,76 @@
-// Wire each widget HTML template into the MCP server as a `Resource`.
-// ChatGPT fetches the resource by URI when it renders the corresponding
-// tool's output template (set via `_meta.openai/outputTemplate`).
+// Wire widget templates into the MCP server as `Resource`s.
 //
-// MIME type `text/html;profile=mcp-app` tells the Apps SDK iframe runtime
-// to treat the body as an MCP-app widget (subscribed to ui/notifications
-// messages), not a generic HTML page.
+// We support two formats:
+//
+//  1. Raw HTML iframes (mimeType `text/html;profile=mcp-app`) — the original
+//     hand-rolled templates in templates.ts. These render as sandboxed
+//     iframes inside ChatGPT and read structuredContent via postMessage.
+//
+//  2. ChatKit widget definitions (mimeType `application/vnd.openai.chatkit-widget+json`)
+//     designed in widgets.chatkit.studio and exported as `.widget` JSON.
+//     These contain a Jinja-like template plus a JSON Schema; ChatGPT
+//     compiles them into native ChatKit components against the tool's
+//     structuredContent.
+//
+// Tools choose which kind to use via `_meta["openai/outputTemplate"]`.
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import healthOverviewWidget from './health-overview.widget.json';
+import mealLogWidget from './meal-log.widget.json';
 import { WIDGETS } from './templates.js';
 
-const APP_MIME = 'text/html;profile=mcp-app';
+const HTML_MIME = 'text/html;profile=mcp-app';
+const CHATKIT_MIME = 'application/vnd.openai.chatkit-widget+json';
+
+export const URI_HEALTH_OVERVIEW = 'ui://widget/health-overview.widget';
+export const URI_MEAL_LOG = 'ui://widget/meal-log.widget';
+
+const CHATKIT_WIDGETS: Array<{ uri: string; body: unknown; title: string }> = [
+  {
+    uri: URI_HEALTH_OVERVIEW,
+    body: healthOverviewWidget,
+    title: 'Health overview',
+  },
+  {
+    uri: URI_MEAL_LOG,
+    body: mealLogWidget,
+    title: 'Meal log confirmation',
+  },
+];
 
 export function registerAllWidgets(server: McpServer): void {
+  // HTML iframe widgets (still used by log_workout + set_target until those
+  // are designed in ChatKit Studio).
   for (const w of WIDGETS) {
     server.registerResource(
-      // Unique resource name (used in MCP server's internal registry).
       `widget:${w.uri}`,
-      // The URI tools will reference via _meta.openai/outputTemplate.
       w.uri,
-      // Resource metadata — kept minimal; mimeType + title are nice-to-have.
-      {
-        mimeType: APP_MIME,
-        title: 'Fitness Coach widget',
-      },
-      // Read callback — fetches the resource on demand. We just return the
-      // pre-built HTML string; ChatGPT caches it per session anyway.
+      { mimeType: HTML_MIME, title: 'Fitness Coach widget' },
       async () => ({
         contents: [
           {
             uri: w.uri,
-            mimeType: APP_MIME,
+            mimeType: HTML_MIME,
             text: w.html,
-            // `prefersBorder: true` asks ChatGPT to render the widget with
-            // its own card chrome rather than inside our card-in-a-card.
-            // We already render our own card so leave this off.
+            _meta: {},
+          },
+        ],
+      }),
+    );
+  }
+
+  // ChatKit widget definitions.
+  for (const w of CHATKIT_WIDGETS) {
+    server.registerResource(
+      `widget:${w.uri}`,
+      w.uri,
+      { mimeType: CHATKIT_MIME, title: w.title },
+      async () => ({
+        contents: [
+          {
+            uri: w.uri,
+            mimeType: CHATKIT_MIME,
+            text: JSON.stringify(w.body),
             _meta: {},
           },
         ],

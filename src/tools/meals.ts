@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { activeTargets, insertMeal, sumMealField } from '../db.js';
 import { istDateString, istTimeString } from '../time.js';
-import { URI_LOG_MEAL } from '../widgets/templates.js';
+import { URI_MEAL_LOG } from '../widgets/register.js';
 import type { UserContext } from './types.js';
 
 const description =
@@ -29,8 +29,9 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
         openWorldHint: false,
       },
       _meta: {
-        'openai/outputTemplate': URI_LOG_MEAL,
-        ui: { resourceUri: URI_LOG_MEAL },
+        // Point at the ChatKit widget definition (.widget JSON).
+        'openai/outputTemplate': URI_MEAL_LOG,
+        ui: { resourceUri: URI_MEAL_LOG },
       },
       inputSchema: {
         description: z

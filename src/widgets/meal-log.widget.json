@@ -1,0 +1,253 @@
+{
+  "version": "1.0",
+  "name": "Meal log confirmation",
+  "template": "{\"type\":\"Card\",\"size\":\"sm\",\"padding\":4,\"children\":[{\"type\":\"Col\",\"gap\":3,\"children\":[{%- set _c -%},{\"type\":\"Box\",\"background\":{\"light\":\"#A7F0BA\",\"dark\":\"#4ade80\"},\"radius\":\"md\",\"padding\":3,\"children\":[{\"type\":\"Row\",\"children\":[{\"type\":\"Title\",\"value\":{{ (description) | tojson }},\"size\":\"md\"},{\"type\":\"Spacer\"},{\"type\":\"Badge\",\"label\":{{ ((calories_kcal ~ \" kcal\")) | tojson }},\"color\":\"success\",\"size\":\"lg\",\"variant\":\"solid\"}]}]},{\"type\":\"Caption\",\"value\":{{ ((\"Assumed: \" ~ portion_assumed)) | tojson }}},{\"type\":\"Divider\"},{\"type\":\"Row\",\"gap\":3,\"children\":[{\"type\":\"Box\",\"flex\":1,\"background\":\"surface-secondary\",\"radius\":\"md\",\"padding\":3,\"align\":\"center\",\"children\":[{\"type\":\"Text\",\"value\":{{ ((protein_g ~ \" g\")) | tojson }},\"size\":\"xl\",\"weight\":\"semibold\"},{\"type\":\"Caption\",\"value\":\"protein\"}]},{\"type\":\"Box\",\"flex\":1,\"background\":\"surface-secondary\",\"radius\":\"md\",\"padding\":3,\"align\":\"center\",\"children\":[{\"type\":\"Text\",\"value\":{{ (time) | tojson }},\"size\":\"xl\",\"weight\":\"semibold\"},{\"type\":\"Caption\",\"value\":\"logged\"}]}]}{%-if daily_target_calories != null -%},{\"type\":\"Col\",\"gap\":2,\"children\":[{\"type\":\"Caption\",\"value\":\"Today's calories\"},{\"type\":\"Row\",\"children\":[{\"type\":\"Text\",\"value\":{{ ((daily_total_calories ~ \" / \" ~ daily_target_calories ~ \" kcal\")) | tojson }},\"weight\":\"semibold\"},{\"type\":\"Spacer\"},{\"type\":\"Caption\",\"value\":{% if daily_total_calories > daily_target_calories %}{{ (((daily_total_calories - daily_target_calories) ~ \" over\")) | tojson }}{% else %}{{ (((daily_target_calories - daily_total_calories) ~ \" kcal headroom\")) | tojson }}{% endif %}}]},{\"type\":\"Box\",\"height\":8,\"radius\":\"full\",\"background\":\"alpha-10\",\"children\":[{\"type\":\"Box\",\"height\":\"100%\",\"radius\":\"full\",\"width\":{{ ((\"$\" ~ (((daily_total_calories / daily_target_calories) * 100) if daily_total_calories / daily_target_calories * 100 <= 100 else 100) ~ \"%\")) | tojson }},\"background\":{% if daily_total_calories / daily_target_calories <= 0.9 %}\"green-400\"{% else %}{% if daily_total_calories / daily_target_calories <= 1 %}\"orange-400\"{% else %}\"red-400\"{% endif %}{% endif %}}]}]}{%-else-%}{%-endif-%}{%-if daily_target_protein_g != null -%},{\"type\":\"Col\",\"gap\":2,\"children\":[{\"type\":\"Caption\",\"value\":\"Today's protein\"},{\"type\":\"Row\",\"children\":[{\"type\":\"Text\",\"value\":{{ ((daily_total_protein_g ~ \" / \" ~ daily_target_protein_g ~ \" g\")) | tojson }},\"weight\":\"semibold\"},{\"type\":\"Spacer\"},{\"type\":\"Caption\",\"value\":{% if daily_total_protein_g >= daily_target_protein_g %}\"goal hit\"{% else %}{{ (((daily_target_protein_g - daily_total_protein_g) ~ \" g to go\")) | tojson }}{% endif %}}]},{\"type\":\"Box\",\"height\":8,\"radius\":\"full\",\"background\":\"alpha-10\",\"children\":[{\"type\":\"Box\",\"height\":\"100%\",\"radius\":\"full\",\"width\":{{ ((\"$\" ~ (((daily_total_protein_g / daily_target_protein_g) * 100) if daily_total_protein_g / daily_target_protein_g * 100 <= 100 else 100) ~ \"%\")) | tojson }},\"background\":{% if daily_total_protein_g / daily_target_protein_g >= 1 %}\"green-400\"{% else %}\"blue-400\"{% endif %}}]}]}{%-else-%}{%-endif-%},{\"type\":\"Divider\"},{\"type\":\"Caption\",\"value\":\"Tell me if the assumed portion is wrong and I'll adjust.\"}{%- endset -%}{{- (_c[1:] if _c and _c[0] == ',' else _c) -}}]}]}",
+  "jsonSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "description": {
+        "type": "string"
+      },
+      "portion_assumed": {
+        "type": "string"
+      },
+      "calories_kcal": {
+        "type": "number"
+      },
+      "protein_g": {
+        "type": "number"
+      },
+      "time": {
+        "type": "string"
+      },
+      "daily_total_calories": {
+        "type": "number"
+      },
+      "daily_total_protein_g": {
+        "type": "number"
+      },
+      "daily_target_calories": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "daily_target_protein_g": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "description",
+      "portion_assumed",
+      "calories_kcal",
+      "protein_g",
+      "time",
+      "daily_total_calories",
+      "daily_total_protein_g",
+      "daily_target_calories",
+      "daily_target_protein_g"
+    ],
+    "additionalProperties": false
+  },
+  "outputJsonPreview": {
+    "type": "Card",
+    "size": "sm",
+    "padding": 4,
+    "children": [
+      {
+        "type": "Col",
+        "gap": 3,
+        "children": [
+          {
+            "type": "Box",
+            "background": {
+              "light": "#A7F0BA",
+              "dark": "#4ade80"
+            },
+            "radius": "md",
+            "padding": 3,
+            "children": [
+              {
+                "type": "Row",
+                "children": [
+                  {
+                    "type": "Title",
+                    "value": "Chicken salad with vinaigrette",
+                    "size": "md"
+                  },
+                  {
+                    "type": "Spacer"
+                  },
+                  {
+                    "type": "Badge",
+                    "label": "520 kcal",
+                    "color": "success",
+                    "size": "lg",
+                    "variant": "solid"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Caption",
+            "value": "Assumed: 1 bowl (350 g)"
+          },
+          {
+            "type": "Divider"
+          },
+          {
+            "type": "Row",
+            "gap": 3,
+            "children": [
+              {
+                "type": "Box",
+                "flex": 1,
+                "background": "surface-secondary",
+                "radius": "md",
+                "padding": 3,
+                "align": "center",
+                "children": [
+                  {
+                    "type": "Text",
+                    "value": "42 g",
+                    "size": "xl",
+                    "weight": "semibold"
+                  },
+                  {
+                    "type": "Caption",
+                    "value": "protein"
+                  }
+                ]
+              },
+              {
+                "type": "Box",
+                "flex": 1,
+                "background": "surface-secondary",
+                "radius": "md",
+                "padding": 3,
+                "align": "center",
+                "children": [
+                  {
+                    "type": "Text",
+                    "value": "12:38 PM",
+                    "size": "xl",
+                    "weight": "semibold"
+                  },
+                  {
+                    "type": "Caption",
+                    "value": "logged"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Col",
+            "gap": 2,
+            "children": [
+              {
+                "type": "Caption",
+                "value": "Today's calories"
+              },
+              {
+                "type": "Row",
+                "children": [
+                  {
+                    "type": "Text",
+                    "value": "1240 / 2200 kcal",
+                    "weight": "semibold"
+                  },
+                  {
+                    "type": "Spacer"
+                  },
+                  {
+                    "type": "Caption",
+                    "value": "960 kcal headroom"
+                  }
+                ]
+              },
+              {
+                "type": "Box",
+                "height": 8,
+                "radius": "full",
+                "background": "alpha-10",
+                "children": [
+                  {
+                    "type": "Box",
+                    "height": "100%",
+                    "radius": "full",
+                    "width": "$56.36363636363636%",
+                    "background": "green-400"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Col",
+            "gap": 2,
+            "children": [
+              {
+                "type": "Caption",
+                "value": "Today's protein"
+              },
+              {
+                "type": "Row",
+                "children": [
+                  {
+                    "type": "Text",
+                    "value": "65 / 120 g",
+                    "weight": "semibold"
+                  },
+                  {
+                    "type": "Spacer"
+                  },
+                  {
+                    "type": "Caption",
+                    "value": "55 g to go"
+                  }
+                ]
+              },
+              {
+                "type": "Box",
+                "height": 8,
+                "radius": "full",
+                "background": "alpha-10",
+                "children": [
+                  {
+                    "type": "Box",
+                    "height": "100%",
+                    "radius": "full",
+                    "width": "$54.166666666666664%",
+                    "background": "blue-400"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "Divider"
+          },
+          {
+            "type": "Caption",
+            "value": "Tell me if the assumed portion is wrong and I'll adjust."
+          }
+        ]
+      }
+    ]
+  },
+  "encodedWidget": "eyJpZCI6ImEyNDE1YjAxLTZiMzctNDdjNC05ZDQ0LWJkN2M0MmEyNmI5OCIsIm5hbWUiOiJNZWFsIGxvZyBjb25maXJtYXRpb24iLCJ2aWV3IjoiPENhcmQgc2l6ZT1cInNtXCIgcGFkZGluZz17NH0-XG4gIDxDb2wgZ2FwPXszfT5cbiAgICA8Qm94XG4gICAgICBiYWNrZ3JvdW5kPXt7IGxpZ2h0OiBcIiNBN0YwQkFcIiwgZGFyazogXCIjNGFkZTgwXCIgfX1cbiAgICAgIHJhZGl1cz1cIm1kXCJcbiAgICAgIHBhZGRpbmc9ezN9XG4gICAgPlxuICAgICAgPFJvdz5cbiAgICAgICAgPFRpdGxlIHZhbHVlPXtkZXNjcmlwdGlvbn0gc2l6ZT1cIm1kXCIgLz5cbiAgICAgICAgPFNwYWNlciAvPlxuICAgICAgICA8QmFkZ2VcbiAgICAgICAgICBsYWJlbD17YCR7Y2Fsb3JpZXNfa2NhbH0ga2NhbGB9XG4gICAgICAgICAgY29sb3I9XCJzdWNjZXNzXCJcbiAgICAgICAgICBzaXplPVwibGdcIlxuICAgICAgICAgIHZhcmlhbnQ9XCJzb2xpZFwiXG4gICAgICAgIC8-XG4gICAgICA8L1Jvdz5cbiAgICA8L0JveD5cblxuICAgIDxDYXB0aW9uIHZhbHVlPXtgQXNzdW1lZDogJHtwb3J0aW9uX2Fzc3VtZWR9YH0gLz5cblxuICAgIDxEaXZpZGVyIC8-XG5cbiAgICA8Um93IGdhcD17M30-XG4gICAgICA8Qm94XG4gICAgICAgIGZsZXg9ezF9XG4gICAgICAgIGJhY2tncm91bmQ9XCJzdXJmYWNlLXNlY29uZGFyeVwiXG4gICAgICAgIHJhZGl1cz1cIm1kXCJcbiAgICAgICAgcGFkZGluZz17M31cbiAgICAgICAgYWxpZ249XCJjZW50ZXJcIlxuICAgICAgPlxuICAgICAgICA8VGV4dCB2YWx1ZT17YCR7cHJvdGVpbl9nfSBnYH0gc2l6ZT1cInhsXCIgd2VpZ2h0PVwic2VtaWJvbGRcIiAvPlxuICAgICAgICA8Q2FwdGlvbiB2YWx1ZT1cInByb3RlaW5cIiAvPlxuICAgICAgPC9Cb3g-XG4gICAgICA8Qm94XG4gICAgICAgIGZsZXg9ezF9XG4gICAgICAgIGJhY2tncm91bmQ9XCJzdXJmYWNlLXNlY29uZGFyeVwiXG4gICAgICAgIHJhZGl1cz1cIm1kXCJcbiAgICAgICAgcGFkZGluZz17M31cbiAgICAgICAgYWxpZ249XCJjZW50ZXJcIlxuICAgICAgPlxuICAgICAgICA8VGV4dCB2YWx1ZT17dGltZX0gc2l6ZT1cInhsXCIgd2VpZ2h0PVwic2VtaWJvbGRcIiAvPlxuICAgICAgICA8Q2FwdGlvbiB2YWx1ZT1cImxvZ2dlZFwiIC8-XG4gICAgICA8L0JveD5cbiAgICA8L1Jvdz5cblxuICAgIHtkYWlseV90YXJnZXRfY2Fsb3JpZXMgIT09IG51bGwgJiYgKFxuICAgICAgPENvbCBnYXA9ezJ9PlxuICAgICAgICA8Q2FwdGlvbiB2YWx1ZT1cIlRvZGF5J3MgY2Fsb3JpZXNcIiAvPlxuICAgICAgICA8Um93PlxuICAgICAgICAgIDxUZXh0XG4gICAgICAgICAgICB2YWx1ZT17YCR7ZGFpbHlfdG90YWxfY2Fsb3JpZXN9IC8gJHtkYWlseV90YXJnZXRfY2Fsb3JpZXN9IGtjYWxgfVxuICAgICAgICAgICAgd2VpZ2h0PVwic2VtaWJvbGRcIlxuICAgICAgICAgIC8-XG4gICAgICAgICAgPFNwYWNlciAvPlxuICAgICAgICAgIDxDYXB0aW9uXG4gICAgICAgICAgICB2YWx1ZT17XG4gICAgICAgICAgICAgIGRhaWx5X3RvdGFsX2NhbG9yaWVzID4gZGFpbHlfdGFyZ2V0X2NhbG9yaWVzXG4gICAgICAgICAgICAgICAgPyBgJHtkYWlseV90b3RhbF9jYWxvcmllcyAtIGRhaWx5X3RhcmdldF9jYWxvcmllc30gb3ZlcmBcbiAgICAgICAgICAgICAgICA6IGAke2RhaWx5X3RhcmdldF9jYWxvcmllcyAtIGRhaWx5X3RvdGFsX2NhbG9yaWVzfSBrY2FsIGhlYWRyb29tYFxuICAgICAgICAgICAgfVxuICAgICAgICAgIC8-XG4gICAgICAgIDwvUm93PlxuICAgICAgICA8Qm94IGhlaWdodD17OH0gcmFkaXVzPVwiZnVsbFwiIGJhY2tncm91bmQ9XCJhbHBoYS0xMFwiPlxuICAgICAgICAgIDxCb3hcbiAgICAgICAgICAgIGhlaWdodD1cIjEwMCVcIlxuICAgICAgICAgICAgcmFkaXVzPVwiZnVsbFwiXG4gICAgICAgICAgICB3aWR0aD17YCQkeyhkYWlseV90b3RhbF9jYWxvcmllcyAvIGRhaWx5X3RhcmdldF9jYWxvcmllcykgKiAxMDAgPD0gMTAwID8gKGRhaWx5X3RvdGFsX2NhbG9yaWVzIC8gZGFpbHlfdGFyZ2V0X2NhbG9yaWVzKSAqIDEwMCA6IDEwMH0lYH1cbiAgICAgICAgICAgIGJhY2tncm91bmQ9e1xuICAgICAgICAgICAgICBkYWlseV90b3RhbF9jYWxvcmllcyAvIGRhaWx5X3RhcmdldF9jYWxvcmllcyA8PSAwLjlcbiAgICAgICAgICAgICAgICA_IFwiZ3JlZW4tNDAwXCJcbiAgICAgICAgICAgICAgICA6IGRhaWx5X3RvdGFsX2NhbG9yaWVzIC8gZGFpbHlfdGFyZ2V0X2NhbG9yaWVzIDw9IDFcbiAgICAgICAgICAgICAgICAgID8gXCJvcmFuZ2UtNDAwXCJcbiAgICAgICAgICAgICAgICAgIDogXCJyZWQtNDAwXCJcbiAgICAgICAgICAgIH1cbiAgICAgICAgICAvPlxuICAgICAgICA8L0JveD5cbiAgICAgIDwvQ29sPlxuICAgICl9XG5cbiAgICB7ZGFpbHlfdGFyZ2V0X3Byb3RlaW5fZyAhPT0gbnVsbCAmJiAoXG4gICAgICA8Q29sIGdhcD17Mn0-XG4gICAgICAgIDxDYXB0aW9uIHZhbHVlPVwiVG9kYXkncyBwcm90ZWluXCIgLz5cbiAgICAgICAgPFJvdz5cbiAgICAgICAgICA8VGV4dFxuICAgICAgICAgICAgdmFsdWU9e2Ake2RhaWx5X3RvdGFsX3Byb3RlaW5fZ30gLyAke2RhaWx5X3RhcmdldF9wcm90ZWluX2d9IGdgfVxuICAgICAgICAgICAgd2VpZ2h0PVwic2VtaWJvbGRcIlxuICAgICAgICAgIC8-XG4gICAgICAgICAgPFNwYWNlciAvPlxuICAgICAgICAgIDxDYXB0aW9uXG4gICAgICAgICAgICB2YWx1ZT17XG4gICAgICAgICAgICAgIGRhaWx5X3RvdGFsX3Byb3RlaW5fZyA-PSBkYWlseV90YXJnZXRfcHJvdGVpbl9nXG4gICAgICAgICAgICAgICAgPyBcImdvYWwgaGl0XCJcbiAgICAgICAgICAgICAgICA6IGAke2RhaWx5X3RhcmdldF9wcm90ZWluX2cgLSBkYWlseV90b3RhbF9wcm90ZWluX2d9IGcgdG8gZ29gXG4gICAgICAgICAgICB9XG4gICAgICAgICAgLz5cbiAgICAgICAgPC9Sb3c-XG4gICAgICAgIDxCb3ggaGVpZ2h0PXs4fSByYWRpdXM9XCJmdWxsXCIgYmFja2dyb3VuZD1cImFscGhhLTEwXCI-XG4gICAgICAgICAgPEJveFxuICAgICAgICAgICAgaGVpZ2h0PVwiMTAwJVwiXG4gICAgICAgICAgICByYWRpdXM9XCJmdWxsXCJcbiAgICAgICAgICAgIHdpZHRoPXtgJCR7KGRhaWx5X3RvdGFsX3Byb3RlaW5fZyAvIGRhaWx5X3RhcmdldF9wcm90ZWluX2cpICogMTAwIDw9IDEwMCA_IChkYWlseV90b3RhbF9wcm90ZWluX2cgLyBkYWlseV90YXJnZXRfcHJvdGVpbl9nKSAqIDEwMCA6IDEwMH0lYH1cbiAgICAgICAgICAgIGJhY2tncm91bmQ9e1xuICAgICAgICAgICAgICBkYWlseV90b3RhbF9wcm90ZWluX2cgLyBkYWlseV90YXJnZXRfcHJvdGVpbl9nID49IDFcbiAgICAgICAgICAgICAgICA_IFwiZ3JlZW4tNDAwXCJcbiAgICAgICAgICAgICAgICA6IFwiYmx1ZS00MDBcIlxuICAgICAgICAgICAgfVxuICAgICAgICAgIC8-XG4gICAgICAgIDwvQm94PlxuICAgICAgPC9Db2w-XG4gICAgKX1cblxuICAgIDxEaXZpZGVyIC8-XG5cbiAgICA8Q2FwdGlvbiB2YWx1ZT1cIlRlbGwgbWUgaWYgdGhlIGFzc3VtZWQgcG9ydGlvbiBpcyB3cm9uZyBhbmQgSSdsbCBhZGp1c3QuXCIgLz5cbiAgPC9Db2w-XG48L0NhcmQ-IiwiZGVmYXVsdFN0YXRlIjp7ImRlc2NyaXB0aW9uIjoiQ2hpY2tlbiBzYWxhZCB3aXRoIHZpbmFpZ3JldHRlIiwicG9ydGlvbl9hc3N1bWVkIjoiMSBib3dsICgzNTAgZykiLCJjYWxvcmllc19rY2FsIjo1MjAsInByb3RlaW5fZyI6NDIsInRpbWUiOiIxMjozOCBQTSIsImRhaWx5X3RvdGFsX2NhbG9yaWVzIjoxMjQwLCJkYWlseV90b3RhbF9wcm90ZWluX2ciOjY1LCJkYWlseV90YXJnZXRfY2Fsb3JpZXMiOjIyMDAsImRhaWx5X3RhcmdldF9wcm90ZWluX2ciOjEyMH0sInN0YXRlcyI6W10sInNjaGVtYSI6ImltcG9ydCB7IHogfSBmcm9tIFwiem9kXCJcblxuY29uc3QgV2lkZ2V0U3RhdGUgPSB6LnN0cmljdE9iamVjdCh7XG4gIGRlc2NyaXB0aW9uOiB6LnN0cmluZygpLFxuICBwb3J0aW9uX2Fzc3VtZWQ6IHouc3RyaW5nKCksXG4gIGNhbG9yaWVzX2tjYWw6IHoubnVtYmVyKCksXG4gIHByb3RlaW5fZzogei5udW1iZXIoKSxcbiAgdGltZTogei5zdHJpbmcoKSxcbiAgZGFpbHlfdG90YWxfY2Fsb3JpZXM6IHoubnVtYmVyKCksXG4gIGRhaWx5X3RvdGFsX3Byb3RlaW5fZzogei5udW1iZXIoKSxcbiAgZGFpbHlfdGFyZ2V0X2NhbG9yaWVzOiB6Lm51bWJlcigpLm51bGxhYmxlKCksXG4gIGRhaWx5X3RhcmdldF9wcm90ZWluX2c6IHoubnVtYmVyKCkubnVsbGFibGUoKSxcbn0pXG5cbmV4cG9ydCBkZWZhdWx0IFdpZGdldFN0YXRlIiwianNvblNjaGVtYSI6e30sInNjaGVtYU1vZGUiOiJ6b2QiLCJzY2hlbWFWYWxpZGl0eSI6InZhbGlkIiwidmlld1ZhbGlkaXR5IjoidmFsaWQiLCJkZWZhdWx0U3RhdGVWYWxpZGl0eSI6InZhbGlkIn0"
+}
