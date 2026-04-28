@@ -19,7 +19,7 @@ Claude: 3/5 workouts done, calories on track (1850/2500), protein behind (95/150
 
 1. **Add the connector**
    Open [Claude → Connectors](https://claude.ai/settings/connectors), click **+ Add custom connector**, and paste:
-   `https://<your-deployed-url>/mcp`
+   `https://fitness-coach.mealfix.workers.dev/mcp`
 
 2. **Sign in with Google**
    Claude pops a Google sign-in. Pick your account and you're connected.
