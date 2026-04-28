@@ -309,14 +309,16 @@ export function renderUserDetail(
       escape(w.notes ?? ''),
     ])}
 
-    ${renderTable('Meals', data.meals, ['When', 'Description', 'Assumed portion', 'Protein', 'Calories', 'Notes'], (m) => [
+    ${renderTable('Meals', data.meals, ['When', 'Description', 'Assumed portion', 'Calories', 'Protein', 'Carbs', 'Fat', 'Notes'], (m) => [
       `${escape(m.eaten_on)}<div class="muted" style="font-size:12px;">${shortDate(m.eaten_at)}</div>`,
       escape(m.description),
       m.portion_assumed
         ? escape(m.portion_assumed)
         : '<span class="muted">—</span>',
-      m.protein_g != null ? `${m.protein_g} g` : '—',
       m.calories_kcal != null ? `${m.calories_kcal} kcal` : '—',
+      m.protein_g != null ? `${m.protein_g} g` : '—',
+      m.carbs_g != null ? `${m.carbs_g} g` : '—',
+      m.fat_g != null ? `${m.fat_g} g` : '—',
       escape(m.notes ?? ''),
     ])}
 

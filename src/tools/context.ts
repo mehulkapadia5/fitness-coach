@@ -44,6 +44,10 @@ async function computeTargetProgress(
     current = await sumMealField(ctx.db, ctx.userId, 'protein_g', today);
   } else if (target.kind === 'calories_kcal' && target.period === 'daily') {
     current = await sumMealField(ctx.db, ctx.userId, 'calories_kcal', today);
+  } else if (target.kind === 'carbs_g' && target.period === 'daily') {
+    current = await sumMealField(ctx.db, ctx.userId, 'carbs_g', today);
+  } else if (target.kind === 'fat_g' && target.period === 'daily') {
+    current = await sumMealField(ctx.db, ctx.userId, 'fat_g', today);
   } else if (
     target.kind === 'workouts_per_week' &&
     target.period === 'weekly'
@@ -140,8 +144,10 @@ export function registerGetContext(
           time: istTimeString(new Date(m.eaten_at), ctx.timezone),
           description: m.description,
           portion_assumed: m.portion_assumed,
-          protein_g: m.protein_g,
           calories_kcal: m.calories_kcal,
+          protein_g: m.protein_g,
+          carbs_g: m.carbs_g,
+          fat_g: m.fat_g,
           notes: m.notes,
         })),
         today_logs: todayLogs.map((l) => ({

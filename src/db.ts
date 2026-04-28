@@ -44,6 +44,8 @@ export interface MealRow {
   portion_assumed: string | null; // null only on rows from before 0005
   protein_g: number | null;
   calories_kcal: number | null;
+  carbs_g: number | null;          // null on rows from before 0006
+  fat_g: number | null;            // null on rows from before 0006
   notes: string | null;
   created_at: string;
 }
@@ -317,6 +319,8 @@ export async function insertMeal(
     portion_assumed: string;
     protein_g: number;
     calories_kcal: number;
+    carbs_g: number;
+    fat_g: number;
     notes?: string;
     eaten_at?: string;
     timezone?: string;
@@ -327,8 +331,8 @@ export async function insertMeal(
   const eaten_on = istDateString(new Date(eaten_at), args.timezone);
   await db
     .prepare(
-      `INSERT INTO meals (id, user_id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO meals (id, user_id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, carbs_g, fat_g, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -339,6 +343,8 @@ export async function insertMeal(
       args.portion_assumed,
       args.protein_g,
       args.calories_kcal,
+      args.carbs_g,
+      args.fat_g,
       args.notes ?? null,
     )
     .run();
@@ -351,6 +357,8 @@ export async function insertMeal(
     portion_assumed: args.portion_assumed,
     protein_g: args.protein_g,
     calories_kcal: args.calories_kcal,
+    carbs_g: args.carbs_g,
+    fat_g: args.fat_g,
     notes: args.notes ?? null,
     created_at: eaten_at,
   };
@@ -363,7 +371,7 @@ export async function mealsOn(
 ): Promise<MealRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, user_id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, notes, created_at
+      `SELECT id, user_id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, carbs_g, fat_g, notes, created_at
          FROM meals
         WHERE user_id = ? AND eaten_on = ?
         ORDER BY eaten_at ASC`,
@@ -382,7 +390,7 @@ export async function mealsSince(
   const since = daysAgoIST(daysBack, timezone);
   const { results } = await db
     .prepare(
-      `SELECT id, user_id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, notes, created_at
+      `SELECT id, user_id, eaten_on, eaten_at, description, portion_assumed, protein_g, calories_kcal, carbs_g, fat_g, notes, created_at
          FROM meals
         WHERE user_id = ? AND eaten_on >= ?
         ORDER BY eaten_on DESC, eaten_at DESC`,
@@ -611,7 +619,7 @@ export async function targetsSince(
 export async function sumMealField(
   db: D1Database,
   userId: string,
-  field: 'protein_g' | 'calories_kcal',
+  field: 'protein_g' | 'calories_kcal' | 'carbs_g' | 'fat_g',
   dateISO: string,
 ): Promise<number> {
   const row = await db
