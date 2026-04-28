@@ -1,17 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import {
-  activeTargets,
-  countWorkoutsBetween,
-  insertWorkout,
-} from '../db.js';
-import {
-  daysAgoIST,
-  istDateString,
-  istDayOfWeek,
-  istTimeString,
-} from '../time.js';
-import { URI_LOG_WORKOUT } from '../widgets/templates.js';
+import { insertWorkout } from '../db.js';
+import { istDayOfWeek, istTimeString } from '../time.js';
 import type { UserContext } from './types.js';
 
 const description =
@@ -44,10 +34,6 @@ export function registerLogWorkout(
         destructiveHint: false,
         idempotentHint: false,
         openWorldHint: false,
-      },
-      _meta: {
-        'openai/outputTemplate': URI_LOG_WORKOUT,
-        ui: { resourceUri: URI_LOG_WORKOUT },
       },
       inputSchema: {
         type: z
@@ -95,33 +81,6 @@ export function registerLogWorkout(
       const intensityPart = row.intensity ? ` (${row.intensity})` : '';
       const summary = `Logged: ${day} ${row.type}${intensityPart} at ${time}`;
 
-      // Enrich for the widget: rolling 7-day count + weekly target if set
-      // so the widget can show "3/5 this week" with a progress bar.
-      const today = istDateString(new Date(row.done_at), ctx.timezone);
-      const [weeklyCount, allTargets] = await Promise.all([
-        countWorkoutsBetween(
-          ctx.db,
-          ctx.userId,
-          daysAgoIST(6, ctx.timezone),
-          today,
-        ),
-        activeTargets(ctx.db, ctx.userId),
-      ]);
-      const weekTarget = allTargets.find(
-        (t) => t.kind === 'workouts_per_week' && t.period === 'weekly',
-      );
-
-      const structuredContent = {
-        type: row.type,
-        intensity: row.intensity,
-        duration_min: row.duration_min,
-        notes: row.notes,
-        day_of_week: day,
-        time,
-        weekly_count: weeklyCount,
-        weekly_target: weekTarget?.target_value ?? null,
-      };
-
       return {
         content: [
           {
@@ -133,7 +92,6 @@ export function registerLogWorkout(
             ),
           },
         ],
-        structuredContent,
       };
     },
   );

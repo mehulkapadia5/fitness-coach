@@ -1,8 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { activeTargets, insertMeal, sumMealField } from '../db.js';
-import { istDateString, istTimeString } from '../time.js';
-import { URI_MEAL_LOG } from '../widgets/register.js';
+import { insertMeal } from '../db.js';
+import { istTimeString } from '../time.js';
 import type { UserContext } from './types.js';
 
 const description =
@@ -27,11 +26,6 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
         destructiveHint: false,
         idempotentHint: false,
         openWorldHint: false,
-      },
-      _meta: {
-        // Point at the ChatKit widget definition (.widget JSON).
-        'openai/outputTemplate': URI_MEAL_LOG,
-        ui: { resourceUri: URI_MEAL_LOG },
       },
       inputSchema: {
         description: z
@@ -95,33 +89,6 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
         `Logged: ${row.description} — assumed ${row.portion_assumed} (${row.calories_kcal} kcal, ${row.protein_g}g protein) at ${time}. ` +
         `Tell the user the assumed portion so they can correct if wrong.`;
 
-      // Enrich with daily totals so the widget can render a calorie
-      // progress bar against the user's active calorie target.
-      const today = istDateString(new Date(row.eaten_at), ctx.timezone);
-      const [dailyKcal, dailyProtein, allTargets] = await Promise.all([
-        sumMealField(ctx.db, ctx.userId, 'calories_kcal', today),
-        sumMealField(ctx.db, ctx.userId, 'protein_g', today),
-        activeTargets(ctx.db, ctx.userId),
-      ]);
-      const calTarget = allTargets.find(
-        (t) => t.kind === 'calories_kcal' && t.period === 'daily',
-      );
-      const proteinTarget = allTargets.find(
-        (t) => t.kind === 'protein_g' && t.period === 'daily',
-      );
-
-      const structuredContent = {
-        description: row.description,
-        portion_assumed: row.portion_assumed,
-        calories_kcal: row.calories_kcal,
-        protein_g: row.protein_g,
-        time,
-        daily_total_calories: dailyKcal,
-        daily_total_protein_g: dailyProtein,
-        daily_target_calories: calTarget?.target_value ?? null,
-        daily_target_protein_g: proteinTarget?.target_value ?? null,
-      };
-
       return {
         content: [
           {
@@ -133,7 +100,6 @@ export function registerLogMeal(server: McpServer, ctx: UserContext): void {
             ),
           },
         ],
-        structuredContent,
       };
     },
   );

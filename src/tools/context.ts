@@ -16,7 +16,6 @@ import {
   istDayOfWeek,
   istTimeString,
 } from '../time.js';
-import { URI_HEALTH_OVERVIEW } from '../widgets/register.js';
 import type { UserContext } from './types.js';
 
 const description =
@@ -83,166 +82,6 @@ async function computeTargetProgress(
   };
 }
 
-// =============================================================================
-// Adapt the rich domain payload to the Health overview ChatKit widget schema.
-// The widget expects a flat list of targets with: id, label, current_value
-// (number, not nullable), target, unit, comparison, period, progressPct, accent.
-// =============================================================================
-
-const KIND_LABELS: Record<string, string> = {
-  protein_g: 'Protein',
-  calories_kcal: 'Calories',
-  workouts_per_week: 'Workouts / week',
-  sleep_hours: 'Sleep',
-};
-
-function humaniseKind(kind: string): string {
-  if (KIND_LABELS[kind]) return KIND_LABELS[kind];
-  return kind
-    .split('_')
-    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-    .join(' ');
-}
-
-function humaniseComparison(c: 'gte' | 'lte' | 'eq'): string {
-  return c === 'gte' ? 'at least' : c === 'lte' ? 'at most' : 'exactly';
-}
-
-function humanisePeriod(p: string): string {
-  return p === 'daily'
-    ? 'per day'
-    : p === 'weekly'
-      ? 'per week'
-      : p === 'by_date'
-        ? 'by date'
-        : 'ongoing';
-}
-
-type Accent = 'blue-500' | 'green-500' | 'purple-500' | 'orange-500';
-
-function pickAccent(
-  comparison: 'gte' | 'lte' | 'eq',
-  current: number,
-  target: number,
-): Accent {
-  if (target <= 0) return 'purple-500';
-  const ratio = current / target;
-  if (comparison === 'lte') {
-    if (ratio > 1) return 'orange-500'; // over the cap
-    if (ratio > 0.9) return 'orange-500';
-    return 'green-500';
-  }
-  // gte / eq
-  if (ratio >= 1) return 'green-500';
-  if (ratio >= 0.6) return 'blue-500';
-  return 'purple-500';
-}
-
-function progressPct(
-  comparison: 'gte' | 'lte' | 'eq',
-  current: number,
-  target: number,
-): number {
-  if (target <= 0) return 0;
-  const raw = (current / target) * 100;
-  if (comparison === 'lte') return Math.min(100, Math.max(0, raw));
-  return Math.min(100, Math.max(0, raw));
-}
-
-interface WidgetTarget {
-  id: string;
-  label: string;
-  current_value: number;
-  target: number;
-  unit: string;
-  comparison: string;
-  period: string;
-  progressPct: number;
-  accent: Accent;
-}
-
-interface WidgetMeal {
-  id: string;
-  time: string;
-  description: string;
-  portion_assumed: string;
-  calories_kcal: number;
-}
-
-interface WidgetWorkout {
-  id: string;
-  type: string;
-}
-
-interface WidgetState {
-  user: string;
-  today_day_of_week: string;
-  today: string;
-  current_time_local: string;
-  timezone: string;
-  active_targets: WidgetTarget[];
-  today_meals: WidgetMeal[];
-  last_7_days_workouts: WidgetWorkout[];
-}
-
-function toWidgetState(
-  ctx: UserContext,
-  args: {
-    today: string;
-    activeTargets: TargetWithProgress[];
-    todayMeals: Array<{
-      eaten_at: string;
-      description: string;
-      portion_assumed: string | null;
-      calories_kcal: number | null;
-    }>;
-    workouts: Array<{ done_at: string; done_on: string; type: string }>;
-  },
-): WidgetState {
-  let n = 0;
-  const nextId = (prefix: string): string => `${prefix}-${++n}`;
-
-  const widgetTargets: WidgetTarget[] = args.activeTargets.map((t) => {
-    const current = t.current_value ?? 0;
-    return {
-      id: nextId('target'),
-      label: humaniseKind(t.kind),
-      current_value: current,
-      target: t.target,
-      unit: t.unit,
-      comparison: humaniseComparison(t.comparison),
-      period: humanisePeriod(t.period),
-      progressPct: progressPct(t.comparison, current, t.target),
-      accent: pickAccent(t.comparison, current, t.target),
-    };
-  });
-
-  const widgetMeals: WidgetMeal[] = args.todayMeals.map((m) => ({
-    id: nextId('meal'),
-    time: istTimeString(new Date(m.eaten_at), ctx.timezone),
-    description: m.description,
-    // schema requires non-null strings/numbers; fall back to friendly defaults.
-    portion_assumed: m.portion_assumed ?? '—',
-    calories_kcal: m.calories_kcal ?? 0,
-  }));
-
-  const widgetWorkouts: WidgetWorkout[] = args.workouts.map((w) => ({
-    id: nextId('workout'),
-    type: w.type,
-  }));
-
-  return {
-    user: ctx.userDisplayName,
-    today: args.today,
-    today_day_of_week: istDayOfWeek(new Date(), ctx.timezone),
-    current_time_local: istTimeString(new Date(), ctx.timezone),
-    timezone: ctx.timezone,
-    active_targets: widgetTargets,
-    today_meals: widgetMeals,
-    last_7_days_workouts: widgetWorkouts,
-  };
-}
-
 export function registerGetContext(
   server: McpServer,
   ctx: UserContext,
@@ -259,11 +98,6 @@ export function registerGetContext(
         openWorldHint: false,
       },
       inputSchema: {},
-      _meta: {
-        // Point at the ChatKit widget definition (.widget JSON).
-        'openai/outputTemplate': URI_HEALTH_OVERVIEW,
-        ui: { resourceUri: URI_HEALTH_OVERVIEW },
-      },
     },
     async () => {
       const today = istDateString(new Date(), ctx.timezone);
@@ -287,10 +121,7 @@ export function registerGetContext(
         targets.map((t) => computeTargetProgress(ctx, t, today)),
       );
 
-      // Rich payload for the model — full context including notes, sleep
-      // logs, daily totals etc. The model gets this in `content[0].text`
-      // so it can reason about everything without needing extra calls.
-      const richPayload = {
+      const payload = {
         user: ctx.userDisplayName,
         today,
         today_day_of_week: istDayOfWeek(new Date(), ctx.timezone),
@@ -325,24 +156,8 @@ export function registerGetContext(
         })),
       };
 
-      // Strictly-shaped widget state matching the Health overview ChatKit
-      // widget's jsonSchema. The widget renderer validates this strictly
-      // (additionalProperties: false), so we keep it lean.
-      const widgetState = toWidgetState(ctx, {
-        today,
-        activeTargets: active_targets,
-        todayMeals,
-        workouts,
-      });
-
       return {
-        content: [
-          { type: 'text', text: JSON.stringify(richPayload, null, 2) },
-        ],
-        // Cast to loose record because the MCP SDK types structuredContent
-        // as { [k: string]: unknown }; our strictly-typed WidgetState
-        // satisfies the shape but lacks the explicit index signature.
-        structuredContent: widgetState as unknown as Record<string, unknown>,
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
       };
     },
   );
