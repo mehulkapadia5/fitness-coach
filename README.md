@@ -1,4 +1,4 @@
-# 🏋️ Fitness Coach
+# 🩺 Bios
 
 Log meals, workouts, and daily health habits by chatting with Claude. No forms, no dashboards — just tell Claude what you ate or did.
 
